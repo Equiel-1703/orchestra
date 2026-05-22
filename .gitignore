@@ -1,0 +1,37 @@
+# Ignore VSCode files
+.vscode/
+.vscode-test/
+.elixir-tools/
+
+# Ignore Erlang specific files
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+
+# Ignore Elixir specific files
+mix.lock
+.elixir_ls/
+/_build
+/cover
+/deps
+/doc
+
+# Ignore compiled libraries and binaries
+/priv/*
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Ignore BMPs
+*.bmp
+
+# Ignore specific scripts
+ocl-polyhok-polyhok-script.sh
+
+# Ignore CMake build files
+build/
+CMake/
