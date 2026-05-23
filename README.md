@@ -14,7 +14,7 @@ To get started with Orchestra, first ensure you have the following prerequisites
   sudo apt install erlang-dev
   ```
 
-- **OpenCL 2.0 compatible hardware**. Check your GPU specifications to ensure it supports OpenCL version 2.0 or higher.
+- **OpenCL 3.0 compatible hardware**. Check your CPU and GPU specifications to ensure it supports OpenCL version 3.0.
 
 - **OpenCL generic ICD loader and C/C++ headers**. You can install the necessary OpenCL packages using your package manager. For Debian/Ubuntu systems, you can use:
 
