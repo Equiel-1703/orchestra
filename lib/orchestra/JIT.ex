@@ -234,13 +234,8 @@ defmodule JIT do
     {fname, _, para} = header
     para = preprocess_formal_parameters(para)
 
-    IO.inspect({fname, para}, label: "Compiling kernel: name and parameters")
-
     param_list = get_param_list(para, inf_types)
     param_vars = get_param_vars(para)
-
-    IO.inspect(param_list, label: "param_list")
-    IO.inspect(param_vars, label: "param_vars")
 
     opencl_body =
       Orchestra.OpenCLBackend.gen_ocl_jit(body, inf_types, param_vars, "module", subs)
@@ -411,8 +406,6 @@ defmodule JIT do
   def get_non_parameters_func_asts([]), do: []
 
   def get_non_parameters_func_asts(fun_graph) do
-    IO.inspect(fun_graph, label: "JIT.get_non_parameters_func_asts: function graph")
-
     fun_graph
     # discard special functions
     |> Enum.filter(fn f -> not Orchestra.TypeInference.is_special_function?(f) end)

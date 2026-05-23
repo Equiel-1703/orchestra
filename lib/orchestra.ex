@@ -467,104 +467,6 @@ defmodule Orchestra do
     gen_list_from_function(new_list_acc, size - 1, fun)
   end
 
-  # ====== The next functions are deprecated because we now need to allocate the Nx tensors with aligned memory ======
-  #
-  # == Creates a new Nx tensor from a function that generates its elements
-  # def new_nx_from_function(l, c, type, fun) do
-  #   size = l * c
-
-  #   ref =
-  #     case type do
-  #       {:f, 32} -> new_matrix_from_function_f(size - 1, fun, <<fun.()::float-little-32>>)
-  #       {:f, 64} -> new_matrix_from_function_d(size - 1, fun, <<fun.()::float-little-64>>)
-  #       {:s, 32} -> new_matrix_from_function_i(size - 1, fun, <<fun.()::integer-little-32>>)
-  #     end
-
-  #   %Nx.Tensor{data: %Nx.BinaryBackend{state: ref}, type: type, shape: {l, c}, names: [nil, nil]}
-  # end
-
-  # # ----------------- Helper functions for new_nx_from_function -----------------
-  # defp new_matrix_from_function_d(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_d(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_d(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.()::float-little-64>>
-  #     )
-
-  # defp new_matrix_from_function_i(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_i(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_i(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.()::integer-little-32>>
-  #     )
-
-  # defp new_matrix_from_function_f(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_f(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_f(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.()::float-little-32>>
-  #     )
-
-  # # == Creates a new Nx tensor from a function that generates its elements receiving the size as argument
-  # def new_nx_from_function_arg(l, c, type, fun) do
-  #   size = l * c
-
-  #   ref =
-  #     case type do
-  #       {:f, 32} ->
-  #         new_matrix_from_function_f_arg(size - 1, fun, <<fun.(size)::float-little-32>>)
-
-  #       {:f, 64} ->
-  #         new_matrix_from_function_d_arg(size - 1, fun, <<fun.(size)::float-little-64>>)
-
-  #       {:s, 32} ->
-  #         new_matrix_from_function_i_arg(size - 1, fun, <<fun.(size)::integer-little-32>>)
-  #     end
-
-  #   %Nx.Tensor{data: %Nx.BinaryBackend{state: ref}, type: type, shape: {l, c}, names: [nil, nil]}
-  # end
-
-  # # ----------------- Helper functions for new_nx_from_function_arg -----------------
-
-  # defp new_matrix_from_function_d_arg(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_d_arg(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_d_arg(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.(size)::float-little-64>>
-  #     )
-
-  # defp new_matrix_from_function_i_arg(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_i_arg(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_i_arg(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.(size)::integer-little-32>>
-  #     )
-
-  # defp new_matrix_from_function_f_arg(0, _, accumulator), do: accumulator
-
-  # defp new_matrix_from_function_f_arg(size, function, accumulator),
-  #   do:
-  #     new_matrix_from_function_f_arg(
-  #       size - 1,
-  #       function,
-  #       <<accumulator::binary, function.(size)::float-little-32>>
-  #     )
-
   @doc """
   Loads the Abstract Syntax Tree (AST) for a given kernel or function used inside a kernel.
 
@@ -601,13 +503,6 @@ defmodule Orchestra do
         f ->
           {:ok, f}
       end
-
-    # - This old code reads the ASTs from a file, but it is commented out, so I'll not touch it.
-    # bytes = File.read!("c_src/#{module}.asts")
-    # map_asts = :erlang.binary_to_term(bytes)
-    # IO.inspect map_size(map_asts)
-    # {ast,_typed?,_types} = Map.get(map_asts,String.to_atom("#{f_name}"))
-    # ast
 
     # Asks the `:module_server` process to get the AST for the specified function name.
     send(:module_server, {:get_ast, f_name, self()})
@@ -786,13 +681,9 @@ defmodule Orchestra do
         nil -> raise "Unknown kernel #{inspect(kernel_name)}"
       end
 
-    Orchestra.TypeInference.set_debug_logs(true)
-
     # Generates a map called 'delta' that maps the formal parameters of the kernel to the inferred types
     # of the actual parameters provided to the kernel (contained in the list `l`).
     delta = JIT.gen_types_delta(kast, l)
-
-    IO.inspect(delta, label: "Initial delta")
 
     # FIRST, we need to infer the signature types of all functions used in the kernel (return type and args types)
     # This is needed to correctly infer the types of the kernel's internal variables and parameters, since they may depend on the return
@@ -810,14 +701,10 @@ defmodule Orchestra do
     # We now infer the types of each function and get a new delta map that contains the function type signatures of each device function
     new_delta = JIT.infer_device_functions_types(funs_graph_asts)
 
-    IO.inspect(new_delta, label: "New delta")
-
     # Now we merge this new_delta containing the type signatures of the device functions with the previous delta containing the types
     # of the kernel parameters, so when we infer the types of the kernel, it can use both the types of the kernel parameters and the types
     # of the device functions used within the kernel.
     delta = Map.merge(delta, new_delta)
-
-    IO.inspect(delta, label: "Merged delta")
 
     # Infers the types of the kernel's variables and functions based on the AST and the new delta map
     inf_types =

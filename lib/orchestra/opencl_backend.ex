@@ -1,17 +1,6 @@
 require OrchestraFunctions
 
 defmodule Orchestra.OpenCLBackend do
-  # @atomic_functions_names %{
-  #   atomic_add: "atomic_fetch_add",
-  #   atomic_sub: "atomic_fetch_sub",
-  #   atomic_exchange: "atomic_exchange",
-  #   atomic_min: "atomic_fetch_min",
-  #   atomic_max: "atomic_fetch_max",
-  #   atomic_and: "atomic_fetch_and",
-  #   atomic_or: "atomic_fetch_or",
-  #   atomic_xor: "atomic_fetch_xor"
-  # }
-
   @doc """
   Generates a new Elixir module AST with a custom `__using__/1` macro and transformed function definitions.
 
@@ -98,8 +87,6 @@ defmodule Orchestra.OpenCLBackend do
           {p, b, c} -> {String.to_atom("_" <> to_string(p)), b, c}
         end
       end)
-
-    IO.inspect(para, label: "Parameters for kernel #{fname}")
 
     new_code =
       quote do:
@@ -223,8 +210,6 @@ defmodule Orchestra.OpenCLBackend do
     "#{type} #{name}(#{para})\n{\n#{body}\n}"
   end
 
-  ########################## ADDING RETURN statement to the ast WHEN FUNCTION RETURNS AN EXPRESSION
-
   @doc """
   Adds a return statement to the given body of code if the function returns an expression.
 
@@ -313,15 +298,10 @@ defmodule Orchestra.OpenCLBackend do
   end
 
   @doc """
-  Generates OpenCL code from the given body, types, parameter variables, module and function substitutions (used when replacing high-order function names, e.g., anonymous functions).
+  Generates OpenCL code from the given body, types, parameter variables, module and function
+  substitutions (used when replacing high-order function names, e.g., anonymous functions).
   """
   def gen_ocl_jit(body, types, param_vars, module, subs) do
-    # IO.puts "##########################gen cuda"
-    # IO.inspect types
-    #  IO.puts "############end gen cuda"
-    # raise "hell"
-    # IO.puts "gen_ocl"
-    # IO.inspect param_vars
     pid = spawn_link(fn -> types_server(param_vars, types, module, subs) end)
     Process.register(pid, :types_server)
     code = gen_body(body)
@@ -546,12 +526,6 @@ defmodule Orchestra.OpenCLBackend do
       {{:., _, [{:__aliases__, _, [struct]}, field]}, _, []} ->
         IO.puts("[BACKEND] Acessing #{struct} with alias and field #{field}")
         "#{to_string(struct)}.#{to_string(field)}"
-
-      # Square root of float (in OpenCL we don't need special function names for different types)
-      # I left this here for old cold compatibility, because otherwise it would try to call sqrtf, and this
-      # doesn't exist in OpenCL
-      {:sqrtf, _, [arg]} ->
-        "sqrt(#{gen_exp(arg)})"
 
       {op, _, args} when op in [:+, :-, :/, :*, :<=, :<, :>, :>=, :&&, :||, :!, :!=, :==] ->
         case args do
