@@ -1,5 +1,7 @@
 require Orchestra
 
+# Orchestra.set_debug_logs(true)
+
 defmodule CsrReader do
   @header_regex ~r/^(?<n1>\d+)\s+(?<n2>\d+)\s+(?<n3>\d+)$/
   @pairs_regex ~r/^(?<n1>\d+)\s+(?<n2>\d+)$/
@@ -99,6 +101,7 @@ defmodule CsrReader do
 
     # Creating the map that will be returned
     %{
+      start_node: final_map.start_node,
       total_nodes: final_map.total_nodes,
       total_edges: final_map.total_edges,
       nodes: Orchestra.tensor(nodes_rev, :s32),
@@ -107,45 +110,123 @@ defmodule CsrReader do
   end
 end
 
-graph_file_path = Path.join(__DIR__, "example-graph-1")
-
-start = System.monotonic_time()
-graph_map = CsrReader.read_and_process_file(graph_file_path)
-stop = System.monotonic_time()
-
-IO.inspect(graph_map)
-IO.puts("Time taken: #{System.convert_time_unit(stop - start, :native, :millisecond)}")
-
 Orchestra.defmodule BFS do
-  defk cpu_bfs_kernel(nodes, n_nodes, edges, n_edges, frontier, frontier_size, new_frontier, next_slot, visited) do
+  defk cpu_bfs_kernel(
+         nodes,
+         n_nodes,
+         edges,
+         n_edges,
+         frontier,
+         frontier_size,
+         new_frontier,
+         atomic(next_slot),
+         visited
+       ) do
     tid = get_global_id(0)
 
     if tid >= frontier_size || tid >= n_nodes do
       return
     end
 
+    # Get node to process in this thread
     node_idx = frontier[tid]
 
+    # Get node info (index in edges array and num edges)
     node_edges_idx = nodes[node_idx * 2 + 0]
     node_num_edges = nodes[node_idx * 2 + 1]
 
-    # Getting child nodes
     for i in range(node_edges_idx, node_edges_idx + node_num_edges) do
-      dest_node_idx = edges[i * 2 + 0] # I'm ignoring the cost for now
+      # Getting child node
+      dest_node_idx = edges[i * 2 + 0]
 
-      if visited[dest_node_idx] != 1 do
+      # Check if this node was visited
+      if visited[dest_node_idx] == 0 do
+        # Mark as visited
         visited[dest_node_idx] = 1
 
+        # Update empty slot and get the index we will use here
+        idx = atomic_add_int(next_slot, 1)
+
+        new_frontier[idx] = dest_node_idx
       end
     end
+  end
 
+  def bfs(
+        %{
+          total_nodes: total_nodes,
+          start_node: start_node
+        } = map
+      ) do
+    frontier_size = 1
+    frontier = Orchestra.tensor({total_nodes}, :s32, fn _ -> start_node end)
+    new_frontier = Orchestra.tensor({total_nodes}, :s32)
+    visited = Orchestra.tensor({total_nodes}, :s32, fn _ -> 0 end)
+
+    # This variable holds the next available index in the new_frontier
+    next_idx = Orchestra.tensor([0], :s32)
+
+    bfs_recursion(map, frontier_size, frontier, new_frontier, next_idx, visited)
+  end
+
+  defp bfs_recursion(_map, 0, _frontier_a, _frontier_b, _next_idx, _visited), do: :ok
+
+  defp bfs_recursion(
+         %{
+           total_nodes: total_nodes,
+           total_edges: total_edges,
+           nodes: nodes_tensor,
+           edges: edges_tensor
+         } = map,
+         frontier_size,
+         frontier,
+         new_frontier,
+         next_idx,
+         visited
+       ) do
+    Orchestra.with Orchestra.cpu() do
+      Orchestra.spawn(
+        &BFS.cpu_bfs_kernel/9,
+        {frontier_size},
+        {0},
+        [
+          nodes_tensor,
+          total_nodes,
+          edges_tensor,
+          total_edges,
+          frontier,
+          frontier_size,
+          new_frontier,
+          next_idx,
+          visited
+        ]
+      )
+    end
+
+    IO.inspect(frontier_size, label: "frontier_size")
+    IO.inspect(frontier, label: "frontier")
+    IO.inspect(new_frontier, label: "new_frontier")
+    IO.inspect(next_idx, label: "next_idx")
+    IO.inspect(visited, label: "visited")
+
+    # For the next iteration, the next free index will be reset
+    new_next_idx = Orchestra.tensor([0], :s32)
+    new_frontier_size = Nx.to_number(next_idx[0])
+
+    bfs_recursion(map, new_frontier_size, new_frontier, frontier, new_next_idx, visited)
   end
 end
 
-# Size of frontier
-nodes_to_visit = 1
+graph_file_path = Path.join(__DIR__, "example-graph-2")
 
-# Frontier queue and visited array
-frontier = Orchestra.tensor({graph_map.total_nodes}, :s32)
-new_frontier = Orchestra.tensor({graph_map.total_nodes}, :s32)
-visited = Orchestra.tensor({graph_map.total_nodes}, :s32, fn _ -> 0 end)
+start = System.monotonic_time()
+graph_map = CsrReader.read_and_process_file(graph_file_path)
+stop = System.monotonic_time()
+
+IO.inspect(graph_map)
+
+IO.puts(
+  "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
+)
+
+BFS.bfs(graph_map)
