@@ -22,8 +22,8 @@ defmodule Orchestra.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nx, "~> 0.9.2"},
-      {:exla, "~> 0.9"}
+      {:nx, "~> 0.12.1"},
+      {:exla, "~> 0.12.0"}
     ]
   end
 end

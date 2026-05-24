@@ -99,10 +99,10 @@ defmodule Orchestra do
                 unquote(e1),
                 unquote(e2),
                 Orchestra.phok(fn unquote(arr1),
-                                   unquote(arr2),
-                                   unquote(par3),
-                                   unquote(var1),
-                                   unquote(var2) ->
+                                  unquote(arr2),
+                                  unquote(par3),
+                                  unquote(var1),
+                                  unquote(var2) ->
                   unquote(body)
                 end)
               )
@@ -520,7 +520,11 @@ defmodule Orchestra do
     unmap_nx_svm_nif(svm_ref)
   end
 
-  defp map_nx_tensor(%Nx.Tensor{data: %Nx.BinaryBackend{state: svm_ref}, type: type, shape: shape}) do
+  defp map_nx_tensor(%Nx.Tensor{
+         data: %Nx.BinaryBackend{state: svm_ref},
+         type: type,
+         shape: shape
+       }) do
     svm_len =
       case shape do
         {c} -> c
@@ -811,10 +815,6 @@ defmodule Orchestra do
     process_args_no_fun(t1)
   end
 
-  defp process_args_no_fun([{:func, _func, _type} | t1]) do
-    process_args_no_fun(t1)
-  end
-
   defp process_args_no_fun([arg | t1]) when is_function(arg) do
     process_args_no_fun(t1)
   end
@@ -833,52 +833,52 @@ defmodule Orchestra do
     [arg | process_args_no_fun(t1)]
   end
 
-  # ----------------- NIF function definitions -----------------
+  # ----------------- NIF stubs -----------------
   def set_debug_logs_nif(_enable) do
-    raise "NIF set_debug_logs_nif/1 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def double_supported_nif(_d) do
-    raise "NIF double_supported_nif/1 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def new_empty_array_nif(_l, _c, _type, _d) do
-    raise "NIF new_empty_array_nif/4 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def get_device_array_nif(_gnx, _l, _c, _type, _d) do
-    raise "NIF get_device_array_nif/5 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def new_array_from_nx_nif(_gnx, _l, _c, _type, _d) do
-    raise "NIF new_array_from_nx_nif/5 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def new_aligned_nx_from_list_nif(_flat_list, _list_len, _type) do
-    raise "NIF new_aligned_nx_from_list_nif/3 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def new_empty_aligned_nx_nif(_len, _type) do
-    raise "NIF new_empty_aligned_nx_nif/2 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def map_nx_svm_nif(_svm_ref, _arr_len, _type) do
-    raise "NIF map_nx_svm_nif/3 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def unmap_nx_svm_nif(_svm_ref) do
-    raise "NIF unmap_nx_svm_nif/1 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def is_nx_aligned_nif(_res) do
-    raise "NIF is_nx_aligned_nif/1 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def synchronize_nif(_d) do
-    raise "NIF syncronize_nif/1 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 
   def jit_compile_and_launch_nif(_n, _k, _grid, _threads, _size, _types, _l, _d) do
-    raise "NIF jit_compile_and_launch_nif/8 not implemented"
+    :erlang.nif_error(:nif_not_loaded)
   end
 end
