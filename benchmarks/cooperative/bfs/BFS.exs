@@ -253,14 +253,32 @@ Orchestra.defmodule BFS do
   end
 end
 
-# Getting name of file to process
-file =
-  try do
-    [arg] = System.argv()
-    arg
-  rescue
+# Getting name of file to process. The user can specify
+argv = System.argv()
+argv_len = length(argv)
+
+{file, it} =
+  case argv_len do
+    1 ->
+      [f] = argv
+      {f, :infinity}
+
+    2 ->
+      [f, i] = argv
+
+      if is_integer(i) && i > 0 do
+        {f, i}
+      else
+        {f, :infinity}
+      end
+
     _ ->
-      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH")
+      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH [MAX_ITERATIONS]\n")
+
+      IO.puts(
+        "The MAX_ITERATIONS is an optional parameter that must be a positive number greater than 0. It specifies how many levels of the graph the algorithm is allowed to explore. If omitted, BFS will assume infinite iterations are allowed."
+      )
+
       System.halt(0)
   end
 
@@ -277,7 +295,7 @@ IO.puts(
 )
 
 start = System.monotonic_time()
-BFS.bfs(graph_map, 5)
+BFS.bfs(graph_map, it)
 stop = System.monotonic_time()
 
 IO.puts("BFS took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms")
