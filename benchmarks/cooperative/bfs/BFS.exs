@@ -115,7 +115,6 @@ Orchestra.defmodule BFS do
          nodes,
          n_nodes,
          edges,
-         n_edges,
          frontier,
          frontier_size,
          new_frontier,
@@ -130,9 +129,13 @@ Orchestra.defmodule BFS do
 
     # Get node to process in this thread
     node_idx = frontier[tid]
+    # Mark it as visited
+    visited[node_idx] = 1
 
-    # Get node info (index in edges array and num edges)
+    # -- Get node info --
+    # Node edges index in edges array
     node_edges_idx = nodes[node_idx * 2 + 0]
+    # Number of edges this node has
     node_num_edges = nodes[node_idx * 2 + 1]
 
     for i in range(node_edges_idx, node_edges_idx + node_num_edges) do
@@ -147,6 +150,7 @@ Orchestra.defmodule BFS do
         # Update empty slot and get the index we will use here
         idx = atomic_add_int(next_slot, 1)
 
+        # Add this node to new frontier
         new_frontier[idx] = dest_node_idx
       end
     end
@@ -156,8 +160,13 @@ Orchestra.defmodule BFS do
         %{
           total_nodes: total_nodes,
           start_node: start_node
-        } = map
+        } = map,
+        max_iterations \\ :infinity
       ) do
+    IO.puts("============== Creating Tensors... ==============")
+
+    start = System.monotonic_time()
+
     frontier_size = 1
     frontier = Orchestra.tensor({total_nodes}, :s32, fn _ -> start_node end)
     new_frontier = Orchestra.tensor({total_nodes}, :s32)
@@ -166,15 +175,26 @@ Orchestra.defmodule BFS do
     # This variable holds the next available index in the new_frontier
     next_idx = Orchestra.tensor([0], :s32)
 
-    bfs_recursion(map, frontier_size, frontier, new_frontier, next_idx, visited)
+    stop = System.monotonic_time()
+
+    IO.puts(
+      "Tensor creation took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
+    )
+
+    IO.puts("============== Starting Recursion ==============")
+
+    bfs_recursion(map, frontier_size, frontier, new_frontier, next_idx, visited, max_iterations)
   end
 
-  defp bfs_recursion(_map, 0, _frontier_a, _frontier_b, _next_idx, _visited), do: :ok
+  defp bfs_recursion(_map, 0, _frontier_a, _frontier_b, _next_idx, _visited, _max_iterations),
+    do: :ok
+
+  defp bfs_recursion(_map, _frontier_size, _frontier_a, _frontier_b, _next_idx, _visited, 0),
+    do: :ok
 
   defp bfs_recursion(
          %{
            total_nodes: total_nodes,
-           total_edges: total_edges,
            nodes: nodes_tensor,
            edges: edges_tensor
          } = map,
@@ -182,18 +202,18 @@ Orchestra.defmodule BFS do
          frontier,
          new_frontier,
          next_idx,
-         visited
+         visited,
+         max_iterations
        ) do
     Orchestra.with Orchestra.cpu() do
       Orchestra.spawn(
-        &BFS.cpu_bfs_kernel/9,
+        &BFS.cpu_bfs_kernel/8,
         {frontier_size},
         {0},
         [
           nodes_tensor,
           total_nodes,
           edges_tensor,
-          total_edges,
           frontier,
           frontier_size,
           new_frontier,
@@ -203,24 +223,51 @@ Orchestra.defmodule BFS do
       )
     end
 
-    IO.inspect(frontier_size, label: "frontier_size")
-    IO.inspect(frontier, label: "frontier")
-    IO.inspect(new_frontier, label: "new_frontier")
-    IO.inspect(next_idx, label: "next_idx")
-    IO.inspect(visited, label: "visited")
-
     # For the next iteration, the next free index will be reset
     new_next_idx = Orchestra.tensor([0], :s32)
     new_frontier_size = Nx.to_number(next_idx[0])
 
-    bfs_recursion(map, new_frontier_size, new_frontier, frontier, new_next_idx, visited)
+    IO.puts("=================================================")
+    IO.inspect(frontier_size, label: "processed frontier size")
+    IO.inspect(frontier, label: "frontier")
+    IO.inspect(new_frontier, label: "new_frontier")
+    IO.inspect(new_frontier_size, label: "size of new_frontier")
+    IO.inspect(next_idx, label: "next_idx")
+    IO.inspect(visited, label: "visited")
+
+    remaining_iterations =
+      cond do
+        is_integer(max_iterations) -> max_iterations - 1
+        true -> max_iterations
+      end
+
+    bfs_recursion(
+      map,
+      new_frontier_size,
+      new_frontier,
+      frontier,
+      new_next_idx,
+      visited,
+      remaining_iterations
+    )
   end
 end
 
-graph_file_path = Path.join(__DIR__, "example-graph-2")
+# Getting name of file to process
+file =
+  try do
+    [arg] = System.argv()
+    arg
+  rescue
+    _ ->
+      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH")
+      System.halt(0)
+  end
+
+IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
 
 start = System.monotonic_time()
-graph_map = CsrReader.read_and_process_file(graph_file_path)
+graph_map = CsrReader.read_and_process_file(file)
 stop = System.monotonic_time()
 
 IO.inspect(graph_map)
@@ -229,4 +276,8 @@ IO.puts(
   "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
 )
 
-BFS.bfs(graph_map)
+start = System.monotonic_time()
+BFS.bfs(graph_map, 5)
+stop = System.monotonic_time()
+
+IO.puts("BFS took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms")
