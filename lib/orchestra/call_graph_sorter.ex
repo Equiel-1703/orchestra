@@ -39,28 +39,28 @@ defmodule Orchestra.CallGraphSorter do
 
   # -- Private Helpers --
 
-  @spec visit(any(), map(), MapSet.t(), {MapSet.t(), list()}) :: {MapSet.t(), list()}
-  defp visit(node, graph, path, {visited, _list} = acc) do
-    if MapSet.member?(visited, node) do
+  @spec visit(atom(), map(), MapSet.t(atom()), {MapSet.t(), list()}) :: {MapSet.t(), list()}
+  defp visit(func, graph, path, {visited, _list} = acc) do
+    if MapSet.member?(visited, func) do
       # If already visited globally, skip
       acc
     else
-      do_visit(node, graph, path, acc)
+      do_visit(func, graph, path, acc)
     end
   end
 
-  @spec do_visit(any(), map(), MapSet.t(), {MapSet.t(), list()}) :: {MapSet.t(), list()}
-  defp do_visit(node, graph, path, {visited, sorted_list}) do
-    if MapSet.member?(path, node) do
-      # Cycle detection: If we see a node that is currently in our recursion stack
-      raise "Circular dependency detected involving function: :#{node}"
+  @spec do_visit(atom(), map(), MapSet.t(atom()), {MapSet.t(), list()}) :: {MapSet.t(), list()}
+  defp do_visit(func, graph, path, {visited, sorted_list}) do
+    if MapSet.member?(path, func) do
+      # Cycle detection: If we see a function that is currently in our recursion stack
+      raise "Circular dependency detected involving function: :#{func}"
     end
 
-    # Get dependencies. If node isn't in graph, return empty list with nil AST
-    {deps, _ast} = Map.get(graph, node, {[], nil})
+    # Get dependencies. If the function isn't in graph, return empty list with nil AST
+    {deps, _ast} = Map.get(graph, func, {[], nil})
 
-    # Add current node to the recursion path (so we can detect cycles)
-    new_path = MapSet.put(path, node)
+    # Add current function to the recursion path (so we can detect cycles)
+    new_path = MapSet.put(path, func)
 
     # Do recursion on all children first
     {new_visited, new_sorted} =
@@ -73,7 +73,7 @@ defmodule Orchestra.CallGraphSorter do
         end
       end)
 
-    # After visiting children, we mark the current node as visited and prepend to list
-    {MapSet.put(new_visited, node), [node | new_sorted]}
+    # After visiting children, we mark the current func as visited and prepend to list
+    {MapSet.put(new_visited, func), [func | new_sorted]}
   end
 end
