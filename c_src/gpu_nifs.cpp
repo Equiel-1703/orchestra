@@ -801,10 +801,25 @@ static ERL_NIF_TERM jit_compile_and_launch_nif(ErlNifEnv *env, int argc, const E
   return enif_make_int(env, 0);
 }
 
-// This function retrieves the OpenCL array from the device (GPU) and returns it to the host as an Erlang term
-// with aligned memory.
-static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int /* argc */, const ERL_NIF_TERM argv[])
+// This function retrieves the OpenCL array from the device (GPU) and returns it to the host as a resource
+// binary with aligned memory. The user can provide a destination binary to copy the data into.
+// If this destination binary is not provided, the function will allocate a new aligned SVM on the host,
+// write it there, and return it as a resource binary.
+// Parameters:
+// 1 - Buffer resource containing the device array (cl::Buffer)
+// 2 - Number of rows (int)
+// 3 - Number of columns (int)
+// 4 - Type name as a charlist (e.g., "float", "int", "double")
+// 5 - Destination binary (or 'nil' if not provided)
+// 6 - Device type as an atom ('gpu' or 'cpu')
+static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
+  if (argc != 6)
+  {
+    std::cerr << "[ERROR] Invalid number of arguments for get_device_array_nif." << std::endl;
+    return enif_make_badarg(env);
+  }
+
   cl::Buffer *device_array = nullptr;
 
   // Get the Buffer resource to copy data from
@@ -861,10 +876,51 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int /* argc */, const E
     return enif_raise_exception(env, enif_make_string(env, message, ERL_NIF_LATIN1));
   }
 
+  // Get destination binary (or 'nil' if not provided)
+  ERL_NIF_TERM e_dest_binary = argv[4];
+  ErlNifBinary dest_binary;
+
   // Get device type (GPU or CPU)
-  ERL_NIF_TERM e_device_type = argv[4];
+  ERL_NIF_TERM e_device_type = argv[5];
   OCLInterface::DeviceType device_type = get_device_type(e_device_type, env);
 
+  // Check if the user provided a destination binary
+  if (!enif_is_identical(e_dest_binary, enif_make_atom(env, "nil")))
+  {
+    // The user provided a binary, we will copy the data directly into it
+    if (!enif_inspect_binary(env, e_dest_binary, &dest_binary))
+    {
+      return enif_make_badarg(env);
+    }
+
+    if (dest_binary.size < data_size)
+    {
+      std::cerr << "[ERROR] The provided destination binary is too small to hold the data." << std::endl;
+      return enif_make_badarg(env);
+    }
+
+    // Copying data from device to host directly into the provided binary
+    try
+    {
+      open_cl->readBuffer(*device_array, (void *)dest_binary.data, data_size, device_type);
+
+      if (debug_logs)
+      {
+        std::cout << "[C++ GPU NIF] Retrieved device array with " << nrow << " rows and " << ncol << " columns." << std::endl;
+        std::cout << "[C++ GPU NIF] Data copied from device to host successfully into the provided binary." << std::endl;
+      }
+
+      // Return the provided binary as is, since we have already copied the data into it
+      return e_dest_binary;
+    }
+    catch (const std::exception &e)
+    {
+      std::cerr << "[ERROR] (get_device_array_nif) copying data from device to host: " << e.what() << std::endl;
+      return enif_raise_exception(env, enif_make_string(env, e.what(), ERL_NIF_LATIN1));
+    }
+  }
+
+  // If the user did not provide a destination binary, we will allocate our own aligned memory
   try
   {
     // Allocate ALIGNED memory in the host to hold the data (all Orchestra tensors are aligned!)
@@ -1567,6 +1623,57 @@ static ERL_NIF_TERM map_nx_svm_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   }
 }
 
+static ERL_NIF_TERM write_tensor_to_gnx_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
+{
+  if (argc != 2)
+  {
+    return enif_make_badarg(env);
+  }
+
+  ERL_NIF_TERM e_gnx_buffer = argv[0];
+  ERL_NIF_TERM e_tensor_data = argv[1];
+
+  // Get the GNx cl::Buffer from the resource
+  cl::Buffer *gnx_buffer = nullptr;
+
+  if (!enif_get_resource(env, e_gnx_buffer, ARRAY_TYPE, (void **)&gnx_buffer))
+  {
+    return enif_make_badarg(env);
+  }
+
+  // Get the tensor data from the binary
+  ErlNifBinary tensor_data;
+  
+  if (!enif_inspect_binary(env, e_tensor_data, &tensor_data))
+  {
+    return enif_make_badarg(env);
+  }
+
+  // Now we need to check if the cl::Buffer has enough size to hold the tensor data before writing to it
+  size_t buffer_size_bytes = gnx_buffer->getInfo<CL_MEM_SIZE>();
+  if (buffer_size_bytes < tensor_data.size)
+  {
+    std::cerr << "[ERROR] write_tensor_to_gnx_nif: The provided GNx buffer is too small to hold the tensor data." << std::endl;
+    return enif_make_badarg(env);
+  }
+
+  try {
+    // Write the tensor data from the binary to the GNx buffer on the device
+    open_cl->writeBuffer(*gnx_buffer, (void *)tensor_data.data, tensor_data.size, OCLInterface::DeviceType::GPU);
+
+    if (debug_logs)
+    {
+      std::cout << "[C++ GPU NIF] Tensor data written to GNx buffer successfully." << std::endl;
+    }
+
+    return enif_make_int(env, 0);
+  }
+  catch (const std::exception &e)
+  {
+    return enif_raise_exception(env, enif_make_string(env, e.what(), ERL_NIF_LATIN1));
+  }
+}
+
 // The ErlNifFunc struct in the Erlang headers expects the arguments in this exact order: name, arity, fptr, flags.
 // I'm using this syntax because the designated initializer syntax was not adopted in C++ until C++20, and this project
 // uses C++17. Therefore, I'm using the traditional aggregate initialization syntax, which requires the fields to be in
@@ -1576,7 +1683,7 @@ static ErlNifFunc nif_funcs[] = {
     {"jit_launch_nif", 7, jit_launch_nif, 0},
     {"jit_compile_and_launch_nif", 8, jit_compile_and_launch_nif, 0},
     {"new_empty_array_nif", 4, new_empty_array_nif, 0},
-    {"get_device_array_nif", 5, get_device_array_nif, 0},
+    {"get_device_array_nif", 6, get_device_array_nif, 0},
     {"new_array_from_nx_nif", 5, new_array_from_nx_nif, 0},
     {"synchronize_nif", 1, synchronize_nif, 0},
     {"set_debug_logs_nif", 1, set_debug_logs_nif, 0},
@@ -1585,6 +1692,7 @@ static ErlNifFunc nif_funcs[] = {
     {"new_empty_aligned_nx_nif", 2, new_empty_aligned_nx_nif, 0},
     {"is_nx_aligned_nif", 1, is_nx_aligned_nif, 0},
     {"map_nx_svm_nif", 3, map_nx_svm_nif, 0},
-    {"unmap_nx_svm_nif", 1, unmap_nx_svm_nif, 0}};
+    {"unmap_nx_svm_nif", 1, unmap_nx_svm_nif, 0},
+    {"write_tensor_to_gnx_nif", 2, write_tensor_to_gnx_nif, 0}};
 
 ERL_NIF_INIT(Elixir.Orchestra, nif_funcs, &load, NULL, NULL, &unload)

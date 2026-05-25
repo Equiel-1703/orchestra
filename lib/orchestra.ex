@@ -130,6 +130,8 @@ defmodule Orchestra do
   defmacro with(ctx, do: body) do
     new_body = process_with_body(body, ctx)
 
+    # IO.puts("Processed with body: #{Macro.to_string(new_body)}")
+
     quote do
       unquote(new_body)
     end
@@ -146,24 +148,43 @@ defmodule Orchestra do
   end
 
   defp process_with_command(c, ctx) do
-    # IO.inspect(c, label: "Processing command")
-
+    # IO.puts("Processing command: #{Macro.to_string(c)}")
     new_c =
       case c do
-        {:=, _, [left, right]} -> {:=, [], [left, process_with_exp(right, ctx)]}
-        {:{}, _, args} -> {:{}, [], Enum.map(args, fn el -> process_with_exp(el, ctx) end)}
-        _ -> process_with_exp(c, ctx)
+        {:=, _, [left, right]} ->
+          {:=, [], [left, process_with_body(right, ctx)]}
+
+        {:{}, _, args} ->
+          {:{}, [], Enum.map(args, fn el -> process_with_exp(el, ctx) end)}
+
+        {:if, _, [exp, [do: do_block, else: else_block]]} ->
+          {:if, [],
+           [
+             process_with_exp(exp, ctx),
+             [do: process_with_body(do_block, ctx), else: process_with_body(else_block, ctx)]
+           ]}
+
+        _ ->
+          process_with_exp(c, ctx)
       end
 
     new_c
   end
 
   defp process_with_exp(exp, ctx) do
+    # IO.puts("Processing expression: #{Macro.to_string(exp)}")
     new_exp =
       case exp do
         {{:., _, [{:__aliases__, _, [:Orchestra]}, fun_name]}, _, args} ->
-          # IO.inspect({fun_name, args}, label: "Processing function")
           {{:., [], [{:__aliases__, [], [:Orchestra]}, fun_name]}, [], [ctx | args]}
+
+        {{:., _, [{:__aliases__, _, [module_name]}, fun_name]}, _, args} ->
+          {{:., [], [{:__aliases__, [], [module_name]}, fun_name]}, [],
+           args |> Enum.map(fn arg -> process_with_exp(arg, ctx) end)}
+
+        # Map creation
+        {:%{}, _, map_args} ->
+          {:%{}, [], Enum.map(map_args, fn {key, value} -> {key, process_with_exp(value, ctx)} end)}
 
         _ ->
           exp
@@ -274,9 +295,17 @@ defmodule Orchestra do
   end
 
   # ------- Function to retrieve device arrays (gnx) back to Elixir -------
+  @doc """
+  Retrieves a GNx tensor from the device (GPU) and returns it as an Nx tensor in the host (CPU).
+
+  This function has an optional parameter where the user can provide an Nx tensor to write the
+  retrieved data into. If the tensor is not provided, Orchestra will allocate a new aligned
+  Nx tensor to store the data.
+  """
   def get_gnx(
         %Orchestra.Context{} = ctx,
-        {{:nx, type, shape, name, gnx_ref}, %Orchestra.Context{} = gnx_ctx}
+        {{:nx, type, shape, name, gnx_ref}, %Orchestra.Context{} = gnx_ctx},
+        tensor \\ nil
       ) do
     cond do
       gnx_ctx.device == ctx.device ->
@@ -294,9 +323,35 @@ defmodule Orchestra do
       end
 
     t_charlist = get_type_charlist(type)
-    ref = get_device_array_nif(gnx_ref, l, c, t_charlist, ctx.device)
 
-    Nx.from_binary(ref, type) |> Nx.reshape(shape, names: name)
+    case tensor do
+      %Nx.Tensor{data: %Nx.BinaryBackend{state: tensor_ref}} ->
+        get_device_array_nif(gnx_ref, l, c, t_charlist, tensor_ref, ctx.device)
+
+        # Return the provided tensor, which now contains the data from the device
+        tensor
+
+      nil ->
+        # Allocates a new aligned SVM tensor and creates an Nx tensor from it
+        bin = get_device_array_nif(gnx_ref, l, c, t_charlist, nil, ctx.device)
+
+        Nx.from_binary(bin, type) |> Nx.reshape(shape, names: name)
+    end
+  end
+
+  # ------- Function to write data to an existing GNx -------
+  def write_gnx(
+        %Orchestra.Context{} = _ctx,
+        {{:nx, _type, _shape, _name, _gnx_ref}, %Orchestra.Context{} = _gnx_ctx} = gnx,
+        %Nx.Tensor{data: %Nx.BinaryBackend{state: _tensor_ref}} = tensor
+      ),
+      do: write_gnx(gnx, tensor)
+
+  def write_gnx(
+        {{:nx, _type, _shape, _name, gnx_ref}, %Orchestra.Context{} = _gnx_ctx},
+        %Nx.Tensor{data: %Nx.BinaryBackend{state: tensor_ref}}
+      ) do
+    write_tensor_to_gnx_nif(gnx_ref, tensor_ref)
   end
 
   # ------- New NX Tensor functions (they allocate aligned memory) -------
@@ -867,7 +922,7 @@ defmodule Orchestra do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def get_device_array_nif(_gnx, _l, _c, _type, _d) do
+  def get_device_array_nif(_gnx, _l, _c, _type, _dest_tensor, _d) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
@@ -888,6 +943,10 @@ defmodule Orchestra do
   end
 
   def unmap_nx_svm_nif(_svm_ref) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  def write_tensor_to_gnx_nif(_gnx_ref, _tensor_ref) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
