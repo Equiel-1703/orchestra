@@ -369,7 +369,7 @@ defmodule Orchestra.TypeInference do
         |> Map.put(array, :none)
         |> set_type_exp(:int, arg2)
 
-      {:__shared__, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} ->
+      {shared_atom, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} when shared_atom in [:__shared__, :__local, :__atomic_local] ->
         array = get_var(arg1)
 
         map
@@ -1098,6 +1098,19 @@ defmodule Orchestra.TypeInference do
 
               :tint ->
                 :tint
+
+              # Pointer arithmetic for atomics
+              t_atomic when OrchestraFunctions.is_atomic_type(t_atomic) ->
+                case t2 do
+                  :int ->
+                    t_atomic
+
+                  :none ->
+                    t_atomic
+
+                  _ ->
+                    raise "Incompatible operands (#{inspect(info)}: op (#{inspect(op)}) applyed to  type #{inspect(t2)} and pointer to atomic type #{inspect(t_atomic)}"
+                end
 
               _ ->
                 raise "Incompatible operands (#{inspect(info)}: op (#{inspect(op)}) applyed to  type #{inspect(t1)}"

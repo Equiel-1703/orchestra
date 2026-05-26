@@ -162,15 +162,15 @@ defmodule Orchestra.OpenCLBackend do
   end
 
   def gen_para(p, :tatomic_int) do
-    "ATOMIC_INT_PTR #{p}"
+    "volatile __global atomic_int *#{p}"
   end
 
   def gen_para(p, :tatomic_float) do
-    "ATOMIC_FLOAT_PTR #{p}"
+    "volatile __global atomic_float *#{p}"
   end
 
   def gen_para(p, :tatomic_double) do
-    "ATOMIC_DOUBLE_PTR #{p}"
+    "volatile __global atomic_double *#{p}"
   end
 
   def gen_para(_p, {_ret, _type}) do
@@ -409,7 +409,7 @@ defmodule Orchestra.OpenCLBackend do
         "float #{name}[#{index}];"
 
       # Work-group shared memory declaration
-      {:__shared__, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} ->
+      {shared_atom, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} when shared_atom in [:__shared__, :__local] ->
         name = gen_exp(arg1)
         index = gen_exp(arg2)
         send(:types_server, {:check_var, name, self()})
@@ -421,6 +421,31 @@ defmodule Orchestra.OpenCLBackend do
                 :tint -> :int
                 :tfloat -> :float
                 :tdouble -> :double
+                u -> raise "Type #{u} given to array #{name}"
+              end
+
+            _ ->
+              raise "Var #{name} already declared."
+          end
+
+        "__local #{atype} #{name}[#{index}];"
+
+      # Atomic local memory declaration
+      {:__atomic_local, _, [{{:., _, [Access, :get]}, _, [arg1, arg2]}]} ->
+        name = gen_exp(arg1)
+        index = gen_exp(arg2)
+        send(:types_server, {:check_var, name, self()})
+
+        atype =
+          receive do
+            {:type, type} ->
+              case type do
+                :tint -> :atomic_int
+                :tfloat -> :atomic_float
+                :tdouble -> :atomic_double
+                :tatomic_int -> :atomic_int
+                :tatomic_float -> :atomic_float
+                :tatomic_double -> :atomic_double
                 u -> raise "Type #{u} given to array #{name}"
               end
 

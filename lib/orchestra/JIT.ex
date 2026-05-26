@@ -839,7 +839,7 @@ defmodule JIT do
         map = find_function_calls_exp(map, arg1)
         find_function_calls_exp(map, arg2)
 
-      {:__shared__, _i1, [{{:., _i2, [Access, :get]}, _i3, [arg1, arg2]}]} ->
+      {shared_atom, _i1, [{{:., _i2, [Access, :get]}, _i3, [arg1, arg2]}]} when shared_atom in [:__shared__, :__local, :__atomic_local] ->
         map = find_function_calls_exp(map, arg1)
         find_function_calls_exp(map, arg2)
 
