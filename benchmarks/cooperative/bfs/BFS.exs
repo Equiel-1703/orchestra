@@ -170,7 +170,7 @@ Orchestra.defmodule BFS do
     lid = get_local_id(0)
 
     # Declare block-level buffers
-    __local(local_buffer[512])
+    __local(local_buffer[2048])
     __local(shift[1])
     __atomic_local(local_free_idx[1])
 
@@ -211,7 +211,7 @@ Orchestra.defmodule BFS do
             # Claim a slot in the local block index
             idx = add_atomic_int(local_free_idx, 1)
 
-            if idx < 512 do
+            if idx < 2048 do
               # Add this node to the local buffer of the work group
               local_buffer[idx] = dest_node_idx
             else
@@ -230,9 +230,9 @@ Orchestra.defmodule BFS do
 
     priv_buffer_size = load_atomic_int(local_free_idx)
 
-    # Cap size of local flush to 512
-    if priv_buffer_size > 512 do
-      priv_buffer_size = 512
+    # Cap size of local flush to 2048
+    if priv_buffer_size > 2048 do
+      priv_buffer_size = 2048
     end
 
     if lid == 0 do
