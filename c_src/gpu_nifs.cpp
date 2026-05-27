@@ -811,10 +811,11 @@ static ERL_NIF_TERM jit_compile_and_launch_nif(ErlNifEnv *env, int argc, const E
 // 3 - Number of columns (int)
 // 4 - Type name as a charlist (e.g., "float", "int", "double")
 // 5 - Destination binary (or 'nil' if not provided)
-// 6 - Device type as an atom ('gpu' or 'cpu')
+// 6 - Number of elements to copy (or 'nil' to copy all elements)
+// 7 - Device type as an atom ('gpu' or 'cpu')
 static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-  if (argc != 6)
+  if (argc != 7)
   {
     std::cerr << "[ERROR] Invalid number of arguments for get_device_array_nif." << std::endl;
     return enif_make_badarg(env);
@@ -855,18 +856,22 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
 
   // Calculating the size of the result
   size_t data_size;
+  size_t elements_size;
 
   if (strcmp(type_name, "float") == 0)
   {
     data_size = sizeof(float) * nrow * ncol;
+    elements_size = sizeof(float);
   }
   else if (strcmp(type_name, "int") == 0)
   {
     data_size = sizeof(int) * nrow * ncol;
+    elements_size = sizeof(int);
   }
   else if (strcmp(type_name, "double") == 0)
   {
     data_size = sizeof(double) * nrow * ncol;
+    elements_size = sizeof(double);
   }
   else // Unknown type
   {
@@ -880,8 +885,29 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
   ERL_NIF_TERM e_dest_binary = argv[4];
   ErlNifBinary dest_binary;
 
+  // Get the number of elements to copy (or 'nil' to copy all elements)
+  ERL_NIF_TERM e_elements_to_copy = argv[5];
+  size_t elements_to_copy_bytes = data_size; // Default to copying all elements
+
+  if (!enif_is_identical(e_elements_to_copy, enif_make_atom(env, "nil")))
+  {
+    if (!enif_get_ulong(env, e_elements_to_copy, &elements_to_copy_bytes))
+    {
+      return enif_make_badarg(env);
+    }
+    elements_to_copy_bytes *= elements_size; // Convert number of elements to number of bytes
+
+    if (elements_to_copy_bytes > data_size)
+    {
+      std::cerr << "[ERROR] The number of elements to copy exceeds the exceeds the capacity of the device array." << std::endl;
+      std::cerr << "[ERROR] Elements to copy (in bytes): " << elements_to_copy_bytes << std::endl;
+      std::cerr << "[ERROR] Device array size (in bytes): " << data_size << std::endl;
+      return enif_make_badarg(env);
+    }
+  }
+
   // Get device type (GPU or CPU)
-  ERL_NIF_TERM e_device_type = argv[5];
+  ERL_NIF_TERM e_device_type = argv[6];
   OCLInterface::DeviceType device_type = get_device_type(e_device_type, env);
 
   // Check if the user provided a destination binary
@@ -893,7 +919,7 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
       return enif_make_badarg(env);
     }
 
-    if (dest_binary.size < data_size)
+    if (dest_binary.size < elements_to_copy_bytes)
     {
       std::cerr << "[ERROR] The provided destination binary is too small to hold the data." << std::endl;
       return enif_make_badarg(env);
@@ -902,7 +928,7 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
     // Copying data from device to host directly into the provided binary
     try
     {
-      open_cl->readBuffer(*device_array, (void *)dest_binary.data, data_size, device_type);
+      open_cl->readBuffer(*device_array, (void *)dest_binary.data, elements_to_copy_bytes, device_type);
 
       if (debug_logs)
       {
@@ -925,10 +951,10 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
   {
     // Allocate ALIGNED memory in the host to hold the data (all Orchestra tensors are aligned!)
     // We do not intend to use SVM for GPU computations, because we are already using cl::Buffer for this.
-    void *aligned_mem = open_cl->createSVM(data_size, OCLInterface::DeviceType::CPU);
+    void *aligned_mem = open_cl->createSVM(elements_to_copy_bytes, OCLInterface::DeviceType::CPU);
 
     // Copying data from device to host
-    open_cl->readBuffer(*device_array, aligned_mem, data_size, device_type);
+    open_cl->readBuffer(*device_array, aligned_mem, elements_to_copy_bytes, device_type);
 
     if (debug_logs)
     {
@@ -946,7 +972,7 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
     // An Erlang Resource Binary will behave like a normal binary in Elixir, but its data pointer will point
     // to the aligned SVM memory OpenCL allocated for us. And when the BEAM garbage collects the Resource Binary,
     // it will call the cpu_svm_destructor we defined, which will free the SVM memory correctly using OpenCL's API.
-    ERL_NIF_TERM resource_bin = enif_make_resource_binary(env, (void *)svm_res, aligned_mem, data_size);
+    ERL_NIF_TERM resource_bin = enif_make_resource_binary(env, (void *)svm_res, aligned_mem, elements_to_copy_bytes);
 
     // Release the resource handle letting the BEAM manage its lifetime
     enif_release_resource(svm_res);
@@ -1755,7 +1781,7 @@ static ErlNifFunc nif_funcs[] = {
     {"jit_launch_nif", 7, jit_launch_nif, 0},
     {"jit_compile_and_launch_nif", 8, jit_compile_and_launch_nif, 0},
     {"new_empty_array_nif", 4, new_empty_array_nif, 0},
-    {"get_device_array_nif", 6, get_device_array_nif, 0},
+    {"get_device_array_nif", 7, get_device_array_nif, 0},
     {"new_array_from_nx_nif", 5, new_array_from_nx_nif, 0},
     {"synchronize_nif", 1, synchronize_nif, 0},
     {"set_debug_logs_nif", 1, set_debug_logs_nif, 0},

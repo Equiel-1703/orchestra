@@ -305,7 +305,8 @@ defmodule Orchestra do
   def get_gnx(
         %Orchestra.Context{} = ctx,
         {{:nx, type, shape, name, gnx_ref}, %Orchestra.Context{} = gnx_ctx},
-        tensor \\ nil
+        tensor \\ nil,
+        elements_to_copy \\ nil
       ) do
     cond do
       gnx_ctx.device == ctx.device ->
@@ -326,14 +327,14 @@ defmodule Orchestra do
 
     case tensor do
       %Nx.Tensor{data: %Nx.BinaryBackend{state: tensor_ref}} ->
-        get_device_array_nif(gnx_ref, l, c, t_charlist, tensor_ref, ctx.device)
+        get_device_array_nif(gnx_ref, l, c, t_charlist, tensor_ref, elements_to_copy, ctx.device)
 
         # Return the provided tensor, which now contains the data from the device
         tensor
 
       nil ->
         # Allocates a new aligned SVM tensor and creates an Nx tensor from it
-        bin = get_device_array_nif(gnx_ref, l, c, t_charlist, nil, ctx.device)
+        bin = get_device_array_nif(gnx_ref, l, c, t_charlist, nil, elements_to_copy, ctx.device)
 
         Nx.from_binary(bin, type) |> Nx.reshape(shape, names: name)
     end
@@ -925,7 +926,7 @@ defmodule Orchestra do
     :erlang.nif_error(:nif_not_loaded)
   end
 
-  def get_device_array_nif(_gnx, _l, _c, _type, _dest_tensor, _d) do
+  def get_device_array_nif(_gnx, _l, _c, _type, _dest_tensor, _elements_to_copy, _d) do
     :erlang.nif_error(:nif_not_loaded)
   end
 
