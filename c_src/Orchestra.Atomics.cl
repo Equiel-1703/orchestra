@@ -129,7 +129,8 @@ compiler must also define the __opencl_c_fp64 feature.
 
 #define ATOMIC_DOUBLE_PTR atomic_double *
 
-#define DECLARE_ATOMIC_DOUBLE_FUNCS(ADDR_SPACE) \
+// Safe Memory Operations (Supported by almost all 64-bit hardware)
+#define DECLARE_ATOMIC_DOUBLE_BASE_FUNCS(ADDR_SPACE) \
 \
 inline __attribute__((overloadable)) void init_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
   atomic_init(ptr, val); \
@@ -139,17 +140,35 @@ inline __attribute__((overloadable)) double load_atomic_double(volatile ADDR_SPA
   return atomic_load_explicit(ptr, MEMORY_ORDER, ATOMIC_SCOPE); \
 } \
 \
+inline __attribute__((overloadable)) double exchange_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
+  return atomic_exchange_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
+}
+
+DECLARE_ATOMIC_DOUBLE_BASE_FUNCS(__global)
+DECLARE_ATOMIC_DOUBLE_BASE_FUNCS(__local)
+
+// Hardware Math Operations (Add/Sub)
+// Checks OpenCL 3.0 features or the legacy float atomics extension
+#if defined(__opencl_c_ext_fp64_global_atomic_add) || defined(cl_ext_float_atomics)
+#define DECLARE_ATOMIC_DOUBLE_ADD_SUB(ADDR_SPACE) \
+\
 inline __attribute__((overloadable)) double add_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
   return atomic_fetch_add_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
 } \
 \
 inline __attribute__((overloadable)) double sub_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
   return atomic_fetch_sub_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
-} \
-\
-inline __attribute__((overloadable)) double exchange_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
-  return atomic_exchange_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
-} \
+}
+
+DECLARE_ATOMIC_DOUBLE_ADD_SUB(__global)
+DECLARE_ATOMIC_DOUBLE_ADD_SUB(__local)
+
+#endif
+
+
+// Hardware Math Operations (Min/Max)
+#if defined(__opencl_c_ext_fp64_global_atomic_min_max) || defined(cl_ext_float_atomics)
+#define DECLARE_ATOMIC_DOUBLE_MIN_MAX(ADDR_SPACE) \
 \
 inline __attribute__((overloadable)) double min_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
   return atomic_fetch_min_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
@@ -157,9 +176,10 @@ inline __attribute__((overloadable)) double min_atomic_double(volatile ADDR_SPAC
 \
 inline __attribute__((overloadable)) double max_atomic_double(volatile ADDR_SPACE ATOMIC_DOUBLE_PTR ptr, double val) { \
   return atomic_fetch_max_explicit(ptr, val, MEMORY_ORDER, ATOMIC_SCOPE); \
+
 }
+DECLARE_ATOMIC_DOUBLE_MIN_MAX(__global)
+DECLARE_ATOMIC_DOUBLE_MIN_MAX(__local)
 
-DECLARE_ATOMIC_DOUBLE_FUNCS(__global)
-DECLARE_ATOMIC_DOUBLE_FUNCS(__local)
-
+#endif
 #endif
