@@ -165,7 +165,8 @@ Orchestra.defmodule BFS do
          new_frontier,
          atomic(next_slot),
          atomic(visited),
-         overflow
+         overflow,
+         switched_to_gpu_flag
        ) do
     tid = get_global_id(0)
     lid = get_local_id(0)
@@ -174,6 +175,12 @@ Orchestra.defmodule BFS do
     __local(local_buffer[256])
     __local(shift[1])
     __atomic_local(local_free_idx[1])
+
+    if switched_to_gpu_flag == 1 && tid < frontier_size do
+      # If we just switched to GPU, we need to initialize the visited array real quick
+      node_idx = frontier[tid]
+      visited[node_idx] = 1
+    end
 
     # Only thread 0 of the work group will initialize the local free index and shift
     if lid == 0 do
@@ -340,21 +347,22 @@ Orchestra.defmodule BFS do
        ) do
     {tensor_map, current_device, used_gpu} =
       if frontier_size > cpu_limit do
-        # IO.puts("============== FRONTIER: #{frontier_size} > #{cpu_limit} | GPU")
+        # ----- Running on GPU -----
 
-        if last_device == :cpu do
-          # IO.puts("== Switching from CPU to GPU. Copying tensors to GPU...")
-
-          # If we are switching from CPU to GPU, we need to copy the frontier and visited tensors to the GPU
-          Orchestra.write_gnx(frontier_gnx, frontier_tensor)
-          Orchestra.write_gnx(visited_gnx, visited_tensor)
-        end
+        switched_to_gpu_flag =
+          if last_device == :cpu do
+            # If we are switching from CPU to GPU, we need to copy the frontier
+            Orchestra.write_gnx(frontier_gnx, frontier_tensor, frontier_size)
+            1
+          else
+            0
+          end
 
         Orchestra.with Orchestra.gpu() do
           # We have to zero out the next_idx and overflow tensors on the GPU before each iteration.
           # The 'next_idx_tensor' will always be zero before every iteration, so we can just copy it.
-          Orchestra.write_gnx(next_idx_gnx, next_idx_tensor)
-          Orchestra.write_gnx(overflow_gnx, next_idx_tensor)
+          Orchestra.write_gnx(next_idx_gnx, next_idx_tensor, 1)
+          Orchestra.write_gnx(overflow_gnx, next_idx_tensor, 1)
 
           threads_per_block = 128
           num_blocks = div(frontier_size + threads_per_block - 1, threads_per_block)
@@ -372,7 +380,8 @@ Orchestra.defmodule BFS do
               new_frontier_gnx,
               next_idx_gnx,
               visited_gnx,
-              overflow_gnx
+              overflow_gnx,
+              switched_to_gpu_flag
             ]
           )
 
@@ -384,11 +393,9 @@ Orchestra.defmodule BFS do
           {tensor_map, :gpu, true}
         end
       else
-        # IO.puts("============== FRONTIER: #{frontier_size} <= #{cpu_limit} | CPU")
+        # ----- Running on CPU -----
 
         if last_device == :gpu do
-          # IO.puts("== Switching from GPU to CPU. Copying tensors to CPU...")
-
           # If we are switching from GPU to CPU, we need to copy the frontier and visited tensors back to the CPU
           Orchestra.with Orchestra.gpu() do
             Orchestra.get_gnx(frontier_gnx, frontier_tensor)
