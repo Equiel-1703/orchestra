@@ -448,7 +448,10 @@ end
 # Setting default cpu_limit
 default_cpu_limit = 1024
 
-# Getting name of file to process. The user can specify
+# Getting name of file to process
+argv = System.argv()
+argv_len = length(argv)
+
 {file, cpu_limit, rep} =
   case argv_len do
     1 ->
