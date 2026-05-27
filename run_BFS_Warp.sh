@@ -15,20 +15,20 @@ if ! [[ "$N" =~ ^[0-9]+$ ]]; then
 fi
 
 # Execute the command N times - No GPU
-echo "Running BFS benchmark WITHOUT GPU acceleration..."
+echo "Running BFS-Warp benchmark WITHOUT GPU acceleration..."
 
 for ((i=1; i<=N; i++)); do
     mix run benchmarks/cooperative/bfs/BFS-Warp.exs \
         benchmarks/cooperative/bfs/facebook_combined.dat \
-        5000 | grep "BFS took:"
+        5000 | grep "BFS-Warp took:"
 done
 
 # Execute the command N times - With GPU
-echo "Running BFS benchmark USING GPU acceleration..."
+echo "Running BFS-Warp benchmark USING GPU acceleration..."
 
 
 for ((i=1; i<=N; i++)); do
     mix run benchmarks/cooperative/bfs/BFS-Warp.exs \
         benchmarks/cooperative/bfs/facebook_combined.dat \
-        1024 | grep "BFS took:"
+        1024 | grep "BFS-Warp took:"
 done
