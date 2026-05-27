@@ -164,14 +164,13 @@ Orchestra.defmodule BFS do
          frontier_size,
          new_frontier,
          atomic(next_slot),
-         atomic(visited),
-         overflow
+         atomic(visited)
        ) do
     tid = get_global_id(0)
     lid = get_local_id(0)
 
     # Declare block-level buffers
-    __local(local_buffer[256])
+    __local(local_buffer[512])
     __local(shift[1])
     __atomic_local(local_free_idx[1])
 
@@ -209,14 +208,17 @@ Orchestra.defmodule BFS do
 
           # Check if WE were the thread that successfully claimed it
           if was_visited == 0 do
-            # Update local buffer with this node
+            # Claim a slot in the local block index
             idx = add_atomic_int(local_free_idx, 1)
 
-            if idx < 256 do
+            if idx < 512 do
               # Add this node to the local buffer of the work group
               local_buffer[idx] = dest_node_idx
             else
-              overflow[0] = 1
+              # Graceful Fallback - Buffer is full!!
+              # Write directly to the global new_frontier to save the node.
+              global_idx = add_atomic_int(next_slot, 1)
+              new_frontier[global_idx] = dest_node_idx
             end
           end
         end
@@ -228,9 +230,9 @@ Orchestra.defmodule BFS do
 
     priv_buffer_size = load_atomic_int(local_free_idx)
 
-    # Cap size of local flush to 256
-    if priv_buffer_size > 256 do
-      priv_buffer_size = 256
+    # Cap size of local flush to 512
+    if priv_buffer_size > 512 do
+      priv_buffer_size = 512
     end
 
     if lid == 0 do
@@ -267,8 +269,7 @@ Orchestra.defmodule BFS do
       frontier: Orchestra.tensor({total_nodes}, :s32, fn _ -> start_node end),
       new_frontier: Orchestra.tensor({total_nodes}, :s32),
       visited: Orchestra.tensor({total_nodes}, :s32, fn _ -> 0 end),
-      next_idx: Orchestra.tensor([0], :s32),
-      overflow: Orchestra.tensor([0], :s32)
+      next_idx: Orchestra.tensor([0], :s32)
     }
 
     # ======================= GNx =======================
@@ -284,8 +285,7 @@ Orchestra.defmodule BFS do
           visited_gnx: Orchestra.new_gnx(tensor_map.visited),
           next_idx_gnx: Orchestra.new_gnx(tensor_map.next_idx),
           nodes_gnx: Orchestra.new_gnx(nodes_tensor),
-          edges_gnx: Orchestra.new_gnx(edges_tensor),
-          overflow_gnx: Orchestra.new_gnx(tensor_map.overflow)
+          edges_gnx: Orchestra.new_gnx(edges_tensor)
         })
       end
 
@@ -327,14 +327,12 @@ Orchestra.defmodule BFS do
            new_frontier: new_frontier_tensor,
            visited: visited_tensor,
            next_idx: next_idx_tensor,
-           overflow: overflow_tensor,
            frontier_gnx: frontier_gnx,
            new_frontier_gnx: new_frontier_gnx,
            visited_gnx: visited_gnx,
            next_idx_gnx: next_idx_gnx,
            nodes_gnx: nodes_gnx,
-           edges_gnx: edges_gnx,
-           overflow_gnx: overflow_gnx
+           edges_gnx: edges_gnx
          } = tensor_map,
          max_iterations,
          cpu_limit,
@@ -352,16 +350,15 @@ Orchestra.defmodule BFS do
           end
 
         Orchestra.with Orchestra.gpu() do
-          # We have to zero out the next_idx and overflow tensors on the GPU before each iteration.
+          # We have to zero out the next_idx tensor on the GPU before each iteration.
           # The 'next_idx_tensor' will always be zero before every iteration, so we can just copy it.
           Orchestra.write_gnx(next_idx_gnx, next_idx_tensor, 1)
-          Orchestra.write_gnx(overflow_gnx, next_idx_tensor, 1)
 
           threads_per_block = 128
           num_blocks = div(frontier_size + threads_per_block - 1, threads_per_block)
 
           Orchestra.spawn(
-            &BFS.gpu_bfs_kernel/9,
+            &BFS.gpu_bfs_kernel/8,
             {num_blocks},
             {threads_per_block},
             [
@@ -372,15 +369,13 @@ Orchestra.defmodule BFS do
               frontier_size,
               new_frontier_gnx,
               next_idx_gnx,
-              visited_gnx,
-              overflow_gnx
+              visited_gnx
             ]
           )
 
-          # After GPU execution, only take the next_idx and overflow tensors back
+          # After GPU execution, only take the next_idx tensor back
           # We will leave the heavy boys on the GPU
           Orchestra.get_gnx(next_idx_gnx, next_idx_tensor)
-          Orchestra.get_gnx(overflow_gnx, overflow_tensor)
 
           {tensor_map, :gpu, true}
         end
@@ -417,14 +412,6 @@ Orchestra.defmodule BFS do
           {tensor_map, :cpu, used_gpu}
         end
       end
-
-    if Nx.to_number(overflow_tensor[0]) == 1 do
-      # Overflow happened in GPU kernel. Print a message to stderr
-      IO.puts(
-        :stderr,
-        "Warning: overflow in GPU kernel. Some nodes may not have been added to the frontier."
-      )
-    end
 
     # For the next iteration, the next free index will be reset and the current frontier and new
     # frontier will be swapped. We will also zero out the next_idx tensor for the next iteration
@@ -513,6 +500,8 @@ IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
 start = System.monotonic_time()
 graph_map = CsrReader.read_and_process_file(file)
 stop = System.monotonic_time()
+
+IO.inspect(graph_map, label: "Graph Map")
 
 IO.puts(
   "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
