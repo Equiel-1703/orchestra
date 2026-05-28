@@ -370,8 +370,8 @@ void OCLInterface::writeBuffer(const cl::Buffer &buffer, const void *host_ptr, s
 {
     const cl::CommandQueue &command_queue = (device_type == DeviceType::GPU) ? this->gpu_command_queue : this->cpu_command_queue;
 
-    // This call is non-blocking
-    command_queue.enqueueWriteBuffer(buffer, CL_FALSE, offset, size, host_ptr);
+    // This call is blocking
+    command_queue.enqueueWriteBuffer(buffer, CL_TRUE, offset, size, host_ptr);
 }
 
 void *OCLInterface::createSVM(size_t size, OCLInterface::DeviceType device_type)
