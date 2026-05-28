@@ -2,8 +2,6 @@ require Orchestra
 
 # Orchestra.set_debug_logs(true)
 
-Nx.default_backend(Nx.BinaryBackend)
-
 Orchestra.defmodule Reduce do
   include(CAS_Poly)
 

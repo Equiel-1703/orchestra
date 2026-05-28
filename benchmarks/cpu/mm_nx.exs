@@ -1,5 +1,3 @@
-Nx.default_backend({EXLA.Backend, client: :host})
-
 defmodule CheckMM do
   def check_spots(num_spots, size, mat1, mat2, result) do
     indexes = for _ <- 1..num_spots, do: {:rand.uniform(size) - 1, :rand.uniform(size) - 1}

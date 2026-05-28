@@ -2,8 +2,6 @@ require Orchestra
 
 # Orchestra.set_debug_logs(true)
 
-Nx.default_backend(Nx.BinaryBackend)
-
 Orchestra.defmodule MM do
   defk map2xy2D_kernel(arr1, arr2, par, resp, size, f) do
     row = get_global_id(1)
@@ -85,8 +83,6 @@ arg =
   end
 
 size = String.to_integer(arg)
-
-IO.puts("Using Nx backend: #{inspect(Nx.default_backend())}\n")
 
 # Generate random matrices in CPU memory
 mat1 = Orchestra.tensor({size, size}, {:f, 32}, fn _i -> :rand.uniform(100) * 1.0 end)
