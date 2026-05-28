@@ -1,16 +1,14 @@
 require Orchestra
 
 Orchestra.defmodule Atomics_2 do
-  defd atomic_add_d(atomic(counter), val) do
-    return atomic_add_int(counter, val)
-  end
-
-  defk atomic_kernel_2(atomic(counter), out_array) do
+  defk atomic_kernel_2(atomic(counter), out_array, size) do
     tid = get_global_id(0)
 
-    previous_val = atomic_add_d(counter, 1)
+    if tid < size do
+      previous_val = add_atomic_int(counter, 1)
 
-    out_array[tid] = previous_val
+      out_array[tid] = previous_val
+    end
   end
 
   def launch(counter_tensor, total_threads) do
@@ -23,10 +21,10 @@ Orchestra.defmodule Atomics_2 do
         out_array_gnx = Orchestra.new_gnx({total_threads}, :s32)
 
         Orchestra.spawn(
-          &Atomics_2.atomic_kernel_2/2,
+          &Atomics_2.atomic_kernel_2/3,
           {num_blocks},
           {block_size},
-          [counter_gnx, out_array_gnx]
+          [counter_gnx, out_array_gnx, total_threads]
         )
 
         res_counter = Orchestra.get_gnx(counter_gnx)
