@@ -32,3 +32,6 @@ mix.lock
 # Ignore CMake build files
 build/
 CMake/
+
+# Ignore local tools
+local_tools/
