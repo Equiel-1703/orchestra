@@ -370,8 +370,8 @@ void OCLInterface::writeBuffer(const cl::Buffer &buffer, const void *host_ptr, s
 {
     const cl::CommandQueue &command_queue = (device_type == DeviceType::GPU) ? this->gpu_command_queue : this->cpu_command_queue;
 
-    // This function could be non-blocking in the future...
-    command_queue.enqueueWriteBuffer(buffer, CL_TRUE, offset, size, host_ptr);
+    // This call is non-blocking
+    command_queue.enqueueWriteBuffer(buffer, CL_FALSE, offset, size, host_ptr);
 }
 
 void *OCLInterface::createSVM(size_t size, OCLInterface::DeviceType device_type)
@@ -397,7 +397,7 @@ void *OCLInterface::createSVM(size_t size, OCLInterface::DeviceType device_type)
         if (svm_shared_pointer == nullptr)
         {
             std::cerr << "[OCL C++ Interface] Failed to allocate aligned SVM memory of size " << size << " bytes for the " << device_type_str << "." << std::endl;
-            throw std::runtime_error("Failed to allocate aligned Sjared Virtual Memory");
+            throw std::runtime_error("Failed to allocate aligned Shared Virtual Memory");
         }
 
         // We are using SVM coarse-grained sharing. This is because coarse-grained is widerly supported in essentially all OpenCL 2.0

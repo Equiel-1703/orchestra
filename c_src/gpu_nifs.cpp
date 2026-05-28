@@ -504,7 +504,6 @@ static ERL_NIF_TERM jit_launch_nif(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
   try
   {
     open_cl->executeKernel(*kernel, global_range, local_range, device_type);
-    open_cl->synchronize(device_type); // Ensure that the kernel execution is completed before proceeding
 
     if (debug_logs)
     {
