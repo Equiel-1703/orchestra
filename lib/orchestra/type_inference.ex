@@ -1023,8 +1023,6 @@ defmodule Orchestra.TypeInference do
           :tfloat ->
             :float
 
-          # We can read from an atomic variable, we just can't write to it.
-          # They behave just like a primitive pointer
           :tatomic_int ->
             :int
 
