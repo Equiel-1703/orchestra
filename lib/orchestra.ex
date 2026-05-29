@@ -752,37 +752,38 @@ defmodule Orchestra do
     # Generates a map called 'delta' that maps the formal parameters of the kernel to the inferred types
     # of the actual parameters provided to the kernel (contained in the list `l`).
     delta = JIT.gen_types_delta(kast, l)
+    # Returns a map of formal parameters that are functions and their actual names in OpenCL code.
+    subs = JIT.get_function_parameters(kast, l)
 
-    # 'args' is a list of the actual arguments passed to the kernel, processed to remove any function references
-    args = process_args_no_fun(l)
+    kernel_types_funs = Map.merge(delta, subs) |> Map.to_list()
+    map_key = {kernel_name, kernel_types_funs, ctx.device}
 
-    # FIRST, we need to infer the signature types of all functions used in the kernel (return type and args types)
-    # This is needed to correctly infer the types of the kernel's internal variables and parameters, since they may depend on the return
-    # types of the functions used within the kernel.
-
-    # To start, let's get the ASTs of all functions used in the kernel (contained in the `fun_graph`). The 'fun_graph' doesn't include
-    # the functions passed as arguments to the kernel, but only those used within the kernel that are not parameters.
-    # This is good, because parameters functions may not exist yet at compile time (e.g. anonymous functions), an their types are
-    # highly dependent on the context of the kernel execution, so they are better inferred later during the kernel inference.
-    funs_graph_asts =
-      JIT.get_non_parameters_func_asts(fun_graph)
-      # Now we need to sort these functions in the correct order of inference
-      |> JIT.sort_functions_by_call_graph()
-
-    # We now infer the types of each function and get a new delta map that contains the function type signatures of each device function
-    new_delta = JIT.infer_device_functions_types(funs_graph_asts)
-
-    # Now we merge this new_delta containing the type signatures of the device functions with the previous delta containing the types
-    # of the kernel parameters, so when we infer the types of the kernel, it can use both the types of the kernel parameters and the types
-    # of the device functions used within the kernel.
-    delta = Map.merge(delta, new_delta)
-
-    map_key = {kernel_name, delta, ctx.device}
     send(:module_server, {:get_kernel, map_key, self()})
 
     {kernel_res, types_args} =
       receive do
         {:kernel, nil} ->
+          # FIRST, we need to infer the signature types of all functions used in the kernel (return type and args types)
+          # This is needed to correctly infer the types of the kernel's internal variables and parameters, since they may depend on the return
+          # types of the functions used within the kernel.
+
+          # To start, let's get the ASTs of all functions used in the kernel (contained in the `fun_graph`). The 'fun_graph' doesn't include
+          # the functions passed as arguments to the kernel, but only those used within the kernel that are not parameters.
+          # This is good, because parameters functions may not exist yet at compile time (e.g. anonymous functions), an their types are
+          # highly dependent on the context of the kernel execution, so they are better inferred later during the kernel inference.
+          funs_graph_asts =
+            JIT.get_non_parameters_func_asts(fun_graph)
+            # Now we need to sort these functions in the correct order of inference
+            |> JIT.sort_functions_by_call_graph()
+
+          # We now infer the types of each function and get a new delta map that contains the function type signatures of each device function
+          new_delta = JIT.infer_device_functions_types(funs_graph_asts)
+
+          # Now we merge this new_delta containing the type signatures of the device functions with the previous delta containing the types
+          # of the kernel parameters, so when we infer the types of the kernel, it can use both the types of the kernel parameters and the types
+          # of the device functions used within the kernel.
+          delta = Map.merge(delta, new_delta)
+
           # Infers the types of the kernel's variables and functions based on the AST and the new delta map
           inf_types =
             case JIT.infer_types(kast, delta, kernel_name) do
@@ -798,11 +799,6 @@ defmodule Orchestra do
           if contains_double and not double_supported_nif(ctx.device) do
             raise "[Orchestra] Your OpenCL device does not support double precision floating point operations (fp64). The 'double' data type cannot be used in kernels."
           end
-
-          # Returns a map of formal parameters that are functions and their actual names in OpenCL code.
-          # This is needed so JIT.compile_kernel can replace the function parameters with their actual names in
-          # the generated OpenCL code.
-          subs = JIT.get_function_parameters(kast, l)
 
           # Compiles the kernel AST into a string representation of the OpenCL code. The inferred types are used
           # to generate the correct OpenCL types for all the kernel internal variables and parameters.
@@ -877,6 +873,9 @@ defmodule Orchestra do
         {:kernel, {kernel_res, types_args}} ->
           {kernel_res, types_args}
       end
+
+    # 'args' is a list of the actual arguments passed to the kernel, processed to remove any function references
+    args = process_args_no_fun(l)
 
     # Now with the kernel reference and the types of the arguments, we can launch the kernel
     jit_launch_nif(kernel_res, b, t, length(args), types_args, args, ctx.device)
