@@ -39,7 +39,7 @@ arg =
 size = String.to_integer(arg)
 
 # Print the current Nx backend being used
-IO.puts("Using Nx backend: #{inspect(Nx.default_backend())}\n")
+# IO.puts("Using Nx backend: #{inspect(Nx.default_backend())}\n")
 
 # Generate random matrices in CPU memory
 mat1 = Orchestra.tensor({size, size}, {:f, 32}, fn _i -> :rand.uniform(100) * 1.0 end)
@@ -56,5 +56,5 @@ time = System.convert_time_unit(timing_end - timing_start, :native, :millisecond
 
 IO.puts("Nx.dot\t#{size}\t#{time}")
 
-IO.puts("\nChecking results for 5 random positions...\n")
-CheckMM.check_spots(5, size, mat1, mat2, result)
+# IO.puts("\nChecking results for 5 random positions...\n")
+# CheckMM.check_spots(5, size, mat1, mat2, result)

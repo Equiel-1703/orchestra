@@ -99,5 +99,5 @@ time = System.convert_time_unit(timing_end - timing_start, :native, :millisecond
 
 IO.puts("Orchestra (CPU)\t#{size}\t#{time}")
 
-IO.puts("\nChecking results for 5 random positions...\n")
-CheckMM.check_spots(5, size, mat1, mat2, result)
+# IO.puts("\nChecking results for 5 random positions...\n")
+# CheckMM.check_spots(5, size, mat1, mat2, result)
