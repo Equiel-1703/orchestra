@@ -142,16 +142,19 @@ Orchestra.defmodule BFS do
       # Getting child node
       dest_node_idx = edges[i * 2 + 0]
 
-      # Check if this node was visited
-      if visited[dest_node_idx] == 0 do
-        # Mark as visited
-        visited[dest_node_idx] = 1
+      # TTAS Optimization
+      was_visited = visited[dest_node_idx]
 
-        # Update empty slot and get the index we will use here
-        idx = add_atomic_int(next_slot, 1)
+      if was_visited == 0 do
+        # Set node as visited and get previous value in one atomic operation
+        was_visited = max_atomic_int(visited + dest_node_idx, 1)
 
-        # Add this node to new frontier
-        new_frontier[idx] = dest_node_idx
+        # Did we set this node as visited?
+        if was_visited == 0 do
+          # If yes, add it to the new frontier
+          idx = add_atomic_int(next_slot, 1)
+          new_frontier[idx] = dest_node_idx
+        end
       end
     end
   end
@@ -294,11 +297,15 @@ Orchestra.defmodule BFS do
 
     stop = System.monotonic_time()
 
+    tensor_creation_time = System.convert_time_unit(stop - start, :native, :millisecond)
+
     IO.puts(
-      "Tensor creation took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
+      "Tensor creation took: #{tensor_creation_time}ms"
     )
 
-    bfs_recursion(nodes_map, frontier_size, tensor_map, max_iterations, cpu_limit, :cpu, false)
+    {used_gpu, visited} = bfs_recursion(nodes_map, frontier_size, tensor_map, max_iterations, cpu_limit, :cpu, false)
+
+    {used_gpu, visited, tensor_creation_time}
   end
 
   @spec bfs_recursion(
@@ -549,11 +556,13 @@ Enum.each(
   fn i ->
     IO.puts("\n--- Iteration #{i} ---")
     start = System.monotonic_time()
-    {used_gpu, visited_tensor} = BFS.bfs(graph_map, cpu_limit)
+    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, cpu_limit)
     stop = System.monotonic_time()
 
-    IO.puts("BFS-Warp took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms")
+    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
+
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
 
     # Check if visited tensor has only 1's
