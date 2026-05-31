@@ -505,18 +505,13 @@ argv_len = length(argv)
       [f, c] = argv
       c = String.to_integer(c)
 
-      if c > 0 do
-        {f, c, 1}
-      else
-        {f, default_cpu_limit, 1}
-      end
+      {f, c, 1}
 
     3 ->
       [f, c, r] = argv
       c = String.to_integer(c)
       r = String.to_integer(r)
 
-      c = if c > 0, do: c, else: default_cpu_limit
       r = if r > 0, do: r, else: 1
 
       {f, c, r}
@@ -529,7 +524,7 @@ argv_len = length(argv)
       )
 
       IO.puts(
-        "The CPU_LIMIT is an optional parameter that must be a positive number greater than 0. It specifies the maximum frontier size that will be processed on the CPU. If the frontier size exceeds this limit, it will be processed on the GPU. If omitted, the default CPU_LIMIT is #{default_cpu_limit}."
+        "The CPU_LIMIT is an optional parameter that specifies the maximum frontier size that will be processed on the CPU. If the frontier size exceeds this limit, it will be processed on the GPU. If omitted, the default CPU_LIMIT is #{default_cpu_limit}."
       )
 
       System.halt(0)
