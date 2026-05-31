@@ -11,8 +11,11 @@ arg =
 
 size = String.to_integer(arg)
 
-matrix_a = Nx.broadcast(1.0, {size, size}, type: :f32)
-matrix_b = Nx.broadcast(2.0, {size, size}, type: :f32)
+num_1_float = Nx.tensor(1.0, type: :f32)
+num_2_float = Nx.tensor(2.0, type: :f32)
+
+matrix_a = Nx.broadcast(num_1_float, {size, size})
+matrix_b = Nx.broadcast(num_2_float, {size, size})
 
 timing_start = System.monotonic_time()
 
