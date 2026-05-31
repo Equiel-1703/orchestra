@@ -13,6 +13,4 @@ end)
 
 next = System.monotonic_time()
 
-IO.inspect(res, label: "Dot product result")
-IO.puts("Expected result: #{size * 2}")
 IO.puts("Elixir\t#{size}\t#{System.convert_time_unit(next - prev, :native, :millisecond)}")
