@@ -92,19 +92,19 @@ vet2 = Orchestra.tensor({n}, :f32, fn _i -> 2.0 end)
 
 prev = System.monotonic_time()
 
-res =
+_res =
   DP.map2(vet1, vet2, Orchestra.phok(fn a, b -> a * b end))
   |> DP.reduce(0.0, Orchestra.phok(fn a, b -> a + b end))
 
 next = System.monotonic_time()
 
-res_value = res |> Nx.to_number()
-expected_value = n * 2
+# res_value = res |> Nx.to_number()
+# expected_value = n * 2
 
 # IO.inspect(vet1, label: "Input tensor 1")
 # IO.inspect(vet2, label: "Input tensor 2")
 # IO.inspect(res, label: "result tensor")
-IO.inspect(res_value, label: "Dot product result")
-IO.puts("Expected result: #{expected_value}")
+# IO.inspect(res_value, label: "Dot product result")
+# IO.puts("Expected result: #{expected_value}")
 
 IO.puts("Orchestra (CPU)\t#{n}\t#{System.convert_time_unit(next - prev, :native, :millisecond)}")

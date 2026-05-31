@@ -142,16 +142,19 @@ Orchestra.defmodule BFS do
       # Getting child node
       dest_node_idx = edges[i * 2 + 0]
 
-      # Check if this node was visited
-      if visited[dest_node_idx] == 0 do
-        # Mark as visited
-        visited[dest_node_idx] = 1
+      # TTAS Optimization
+      was_visited = visited[dest_node_idx]
 
-        # Update empty slot and get the index we will use here
-        idx = add_atomic_int(next_slot, 1)
+      if was_visited == 0 do
+        # Set node as visited and get previous value in one atomic operation
+        was_visited = max_atomic_int(visited + dest_node_idx, 1)
 
-        # Add this node to new frontier
-        new_frontier[idx] = dest_node_idx
+        # Did we set this node as visited?
+        if was_visited == 0 do
+          # If yes, add it to the new frontier
+          idx = add_atomic_int(next_slot, 1)
+          new_frontier[idx] = dest_node_idx
+        end
       end
     end
   end
@@ -258,8 +261,10 @@ Orchestra.defmodule BFS do
         %{
           total_nodes: total_nodes,
           start_node: start_node,
-          nodes: nodes_tensor,
-          edges: edges_tensor
+          nodes: _nodes_tensor,
+          edges: _edges_tensor,
+          nodes_gnx: _nodes_gnx,
+          edges_gnx: _edges_gnx
         } = nodes_map,
         cpu_limit,
         max_iterations \\ :infinity
@@ -286,19 +291,21 @@ Orchestra.defmodule BFS do
               Orchestra.get_type(tensor_map.new_frontier)
             ),
           visited_gnx: Orchestra.new_gnx(tensor_map.visited),
-          next_idx_gnx: Orchestra.new_gnx(tensor_map.next_idx),
-          nodes_gnx: Orchestra.new_gnx(nodes_tensor),
-          edges_gnx: Orchestra.new_gnx(edges_tensor)
+          next_idx_gnx: Orchestra.new_gnx(tensor_map.next_idx)
         })
       end
 
     stop = System.monotonic_time()
 
+    tensor_creation_time = System.convert_time_unit(stop - start, :native, :millisecond)
+
     IO.puts(
-      "Tensor creation took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
+      "Tensor creation took: #{tensor_creation_time}ms"
     )
 
-    bfs_recursion(nodes_map, frontier_size, tensor_map, max_iterations, cpu_limit, :cpu, false)
+    {used_gpu, visited} = bfs_recursion(nodes_map, frontier_size, tensor_map, max_iterations, cpu_limit, :cpu, false)
+
+    {used_gpu, visited, tensor_creation_time}
   end
 
   @spec bfs_recursion(
@@ -312,9 +319,7 @@ Orchestra.defmodule BFS do
             frontier_gnx: term(),
             new_frontier_gnx: term(),
             visited_gnx: term(),
-            next_idx_gnx: term(),
-            nodes_gnx: term(),
-            edges_gnx: term()
+            next_idx_gnx: term()
           },
           max_iterations :: :infinity | integer(),
           cpu_limit :: integer(),
@@ -357,7 +362,9 @@ Orchestra.defmodule BFS do
          %{
            total_nodes: total_nodes,
            nodes: nodes_tensor,
-           edges: edges_tensor
+           edges: edges_tensor,
+           nodes_gnx: nodes_gnx,
+           edges_gnx: edges_gnx
          } = nodes_map,
          frontier_size,
          tensor_map,
@@ -392,9 +399,9 @@ Orchestra.defmodule BFS do
             {num_blocks},
             {threads_per_block},
             [
-              tensor_map.nodes_gnx,
+              nodes_gnx,
               total_nodes,
-              tensor_map.edges_gnx,
+              edges_gnx,
               tensor_map.frontier_gnx,
               frontier_size,
               tensor_map.new_frontier_gnx,
@@ -487,49 +494,28 @@ Orchestra.defmodule BFS do
   end
 end
 
-# Setting default cpu_limit
-default_cpu_limit = 1024
-
 # Getting name of file to process
 argv = System.argv()
 argv_len = length(argv)
 
-{file, cpu_limit, rep} =
+{file, rep} =
   case argv_len do
     1 ->
       [f] = argv
-      # Default cpu limit
-      {f, default_cpu_limit, 1}
+      {f, 1}
 
     2 ->
-      [f, c] = argv
-      c = String.to_integer(c)
-
-      if c > 0 do
-        {f, c, 1}
-      else
-        {f, default_cpu_limit, 1}
-      end
-
-    3 ->
-      [f, c, r] = argv
-      c = String.to_integer(c)
+      [f, r] = argv
       r = String.to_integer(r)
-
-      c = if c > 0, do: c, else: default_cpu_limit
       r = if r > 0, do: r, else: 1
 
-      {f, c, r}
+      {f, r}
 
     _ ->
-      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH CPU_LIMIT [REPEATS]\n")
+      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH [REPEATS]\n")
 
       IO.puts(
         "The REPEATS is an optional parameter that must be a positive number greater than 0. It specifies how many times the algorithm will repeat. If omitted, the default REPEATS is 1."
-      )
-
-      IO.puts(
-        "The CPU_LIMIT is an optional parameter that must be a positive number greater than 0. It specifies the maximum frontier size that will be processed on the CPU. If the frontier size exceeds this limit, it will be processed on the GPU. If omitted, the default CPU_LIMIT is #{default_cpu_limit}."
       )
 
       System.halt(0)
@@ -539,6 +525,13 @@ IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
 
 start = System.monotonic_time()
 graph_map = CsrReader.read_and_process_file(file)
+graph_map =
+  Orchestra.with Orchestra.gpu() do
+    Map.merge(graph_map, %{
+      nodes_gnx: Orchestra.new_gnx(graph_map.nodes),
+      edges_gnx: Orchestra.new_gnx(graph_map.edges)
+    })
+  end
 stop = System.monotonic_time()
 
 # IO.inspect(graph_map, label: "Graph Map")
@@ -547,27 +540,35 @@ IO.puts(
   "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
 )
 
-IO.puts("\n--- Starting BFS-Warp with CPU limit: #{cpu_limit} and repeats: #{rep} ---")
+# Function that runs BFS with a provided frontier
+run_bfs = fn frontier_threshold ->
+  IO.puts("\n--- Starting BFS-Warp | frontier_threshold: #{frontier_threshold} | repeats: #{rep} ---")
 
-Enum.each(
-  1..rep,
-  fn i ->
-    IO.puts("\n--- Iteration #{i} ---")
-    start = System.monotonic_time()
-    {used_gpu, visited_tensor} = BFS.bfs(graph_map, cpu_limit)
-    stop = System.monotonic_time()
+  Enum.each(
+    1..rep,
+    fn i ->
+      IO.puts("\n--- Iteration #{i} ---")
+      start = System.monotonic_time()
+      {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
+      stop = System.monotonic_time()
 
-    IO.puts("BFS-Warp took: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms")
-    IO.puts("BFS-Warp used GPU: #{used_gpu}")
-    # IO.inspect(visited_tensor, label: "Visited Tensor")
+      bfs_time_total = System.convert_time_unit(stop - start, :native, :millisecond)
 
-    # Check if visited tensor has only 1's
-    all_visited =
-      visited_tensor
-      |> Nx.equal(1)
-      |> Nx.all()
-      |> Nx.to_number()
+      IO.puts("BFS-Warp total execution time: #{bfs_time_total}ms")
+      IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time_total - tensor_creation_time}ms")
+      IO.puts("BFS-Warp used GPU: #{used_gpu}")
+    end
+  )
+end
 
-    IO.puts("All nodes visited: #{all_visited == 1}\n")
-  end
-)
+IO.puts("\n--- GPU-Only ---")
+frontier_threshold = 0
+run_bfs.(frontier_threshold)
+
+IO.puts("\n--- GPU-CPU Cooperative ---")
+frontier_threshold = 1024
+run_bfs.(frontier_threshold)
+
+IO.puts("\n--- CPU-Only ---")
+frontier_threshold = 50_000_000
+run_bfs.(frontier_threshold)
