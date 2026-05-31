@@ -551,13 +551,6 @@ Enum.each(
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
 
-    # Check if visited tensor has only 1's
-    all_visited =
-      visited_tensor
-      |> Nx.equal(1)
-      |> Nx.all()
-      |> Nx.to_number()
-
     IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
 )
@@ -580,13 +573,6 @@ Enum.each(
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
 
-    # Check if visited tensor has only 1's
-    all_visited =
-      visited_tensor
-      |> Nx.equal(1)
-      |> Nx.all()
-      |> Nx.to_number()
-
     IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
 )
@@ -608,13 +594,6 @@ Enum.each(
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
-
-    # Check if visited tensor has only 1's
-    all_visited =
-      visited_tensor
-      |> Nx.equal(1)
-      |> Nx.all()
-      |> Nx.to_number()
 
     IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
