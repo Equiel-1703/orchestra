@@ -11,8 +11,8 @@ arg =
 
 size = String.to_integer(arg)
 
-matrix_a = Nx.broadcast(1, {size, size})
-matrix_b = Nx.broadcast(2, {size, size})
+matrix_a = Nx.broadcast(1.0, {size, size}, type: :f32)
+matrix_b = Nx.broadcast(2.0, {size, size}, type: :f32)
 
 timing_start = System.monotonic_time()
 
