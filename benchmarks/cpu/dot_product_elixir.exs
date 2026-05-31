@@ -7,7 +7,7 @@ list_b = List.duplicate(2, size)
 
 prev = System.monotonic_time()
 
-res = Enum.zip_reduce(list_a, list_b, 0, fn a, b, acc ->
+_res = Enum.zip_reduce(list_a, list_b, 0, fn a, b, acc ->
   acc + (a * b)
 end)
 
