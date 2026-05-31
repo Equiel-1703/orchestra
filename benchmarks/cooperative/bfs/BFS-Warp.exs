@@ -494,44 +494,28 @@ Orchestra.defmodule BFS do
   end
 end
 
-# Setting default cpu_limit
-default_cpu_limit = 1024
-
 # Getting name of file to process
 argv = System.argv()
 argv_len = length(argv)
 
-{file, cpu_limit, rep} =
+{file, rep} =
   case argv_len do
     1 ->
       [f] = argv
-      # Default cpu limit
-      {f, default_cpu_limit, 1}
+      {f, 1}
 
     2 ->
-      [f, c] = argv
-      c = String.to_integer(c)
-
-      {f, c, 1}
-
-    3 ->
-      [f, c, r] = argv
-      c = String.to_integer(c)
+      [f, r] = argv
       r = String.to_integer(r)
-
       r = if r > 0, do: r, else: 1
 
-      {f, c, r}
+      {f, r}
 
     _ ->
-      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH CPU_LIMIT [REPEATS]\n")
+      IO.puts("Usage: mix run #{Path.basename(__ENV__.file)} FILE_PATH [REPEATS]\n")
 
       IO.puts(
         "The REPEATS is an optional parameter that must be a positive number greater than 0. It specifies how many times the algorithm will repeat. If omitted, the default REPEATS is 1."
-      )
-
-      IO.puts(
-        "The CPU_LIMIT is an optional parameter that specifies the maximum frontier size that will be processed on the CPU. If the frontier size exceeds this limit, it will be processed on the GPU. If omitted, the default CPU_LIMIT is #{default_cpu_limit}."
       )
 
       System.halt(0)
@@ -549,14 +533,74 @@ IO.puts(
   "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
 )
 
-IO.puts("\n--- Starting BFS-Warp with CPU limit: #{cpu_limit} and repeats: #{rep} ---")
+IO.puts("\n--- Starting BFS-Warp (GPU-Only) repeats: #{rep} ---")
+
+frontier_threshold = 0
 
 Enum.each(
   1..rep,
   fn i ->
     IO.puts("\n--- Iteration #{i} ---")
     start = System.monotonic_time()
-    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, cpu_limit)
+    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
+    stop = System.monotonic_time()
+
+    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
+
+    IO.puts("BFS-Warp used GPU: #{used_gpu}")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
+    # IO.inspect(visited_tensor, label: "Visited Tensor")
+
+    # Check if visited tensor has only 1's
+    all_visited =
+      visited_tensor
+      |> Nx.equal(1)
+      |> Nx.all()
+      |> Nx.to_number()
+
+    IO.puts("All nodes visited: #{all_visited == 1}\n")
+  end
+)
+
+IO.puts("\n--- Starting BFS-Warp (GPU-CPU) repeats: #{rep} ---")
+
+frontier_threshold = 2048
+
+Enum.each(
+  1..rep,
+  fn i ->
+    IO.puts("\n--- Iteration #{i} ---")
+    start = System.monotonic_time()
+    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
+    stop = System.monotonic_time()
+
+    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
+
+    IO.puts("BFS-Warp used GPU: #{used_gpu}")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
+    # IO.inspect(visited_tensor, label: "Visited Tensor")
+
+    # Check if visited tensor has only 1's
+    all_visited =
+      visited_tensor
+      |> Nx.equal(1)
+      |> Nx.all()
+      |> Nx.to_number()
+
+    IO.puts("All nodes visited: #{all_visited == 1}\n")
+  end
+)
+
+IO.puts("\n--- Starting BFS-Warp (CPU-Only) repeats: #{rep} ---")
+
+frontier_threshold = 50_000_000
+
+Enum.each(
+  1..rep,
+  fn i ->
+    IO.puts("\n--- Iteration #{i} ---")
+    start = System.monotonic_time()
+    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
     stop = System.monotonic_time()
 
     bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
