@@ -261,10 +261,10 @@ Orchestra.defmodule BFS do
         %{
           total_nodes: total_nodes,
           start_node: start_node,
-          nodes: nodes_tensor,
-          edges: edges_tensor,
-          nodes_gnx: nodes_gnx,
-          edges_gnx: edges_gnx
+          nodes: _nodes_tensor,
+          edges: _edges_tensor,
+          nodes_gnx: _nodes_gnx,
+          edges_gnx: _edges_gnx
         } = nodes_map,
         cpu_limit,
         max_iterations \\ :infinity
