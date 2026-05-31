@@ -90,7 +90,7 @@ mat2 = Orchestra.tensor({size, size}, {:f, 32}, fn _i -> :rand.uniform(100) * 1.
 
 timing_start = System.monotonic_time()
 
-result = MM.mm(mat1, mat2, size)
+_result = MM.mm(mat1, mat2, size)
 
 timing_end = System.monotonic_time()
 

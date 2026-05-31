@@ -47,7 +47,7 @@ mat2 = Orchestra.tensor({size, size}, {:f, 32}, fn _i -> :rand.uniform(100) * 1.
 
 timing_start = System.monotonic_time()
 
-result = Nx.dot(mat1, mat2)
+_result = Nx.dot(mat1, mat2)
 
 timing_end = System.monotonic_time()
 
