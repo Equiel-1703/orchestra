@@ -521,6 +521,18 @@ argv_len = length(argv)
       System.halt(0)
   end
 
+IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
+
+start = System.monotonic_time()
+graph_map = CsrReader.read_and_process_file(file)
+stop = System.monotonic_time()
+
+# IO.inspect(graph_map, label: "Graph Map")
+
+IO.puts(
+  "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
+)
+
 # Function that runs BFS with a provided frontier
 run_bfs = fn frontier_threshold ->
   IO.puts("\n--- Starting BFS-Warp | frontier_threshold: #{frontier_threshold} | repeats: #{rep} ---")
@@ -541,18 +553,6 @@ run_bfs = fn frontier_threshold ->
     end
   )
 end
-
-IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
-
-start = System.monotonic_time()
-graph_map = CsrReader.read_and_process_file(file)
-stop = System.monotonic_time()
-
-# IO.inspect(graph_map, label: "Graph Map")
-
-IO.puts(
-  "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
-)
 
 IO.puts("\n--- GPU-Only ---")
 frontier_threshold = 0
