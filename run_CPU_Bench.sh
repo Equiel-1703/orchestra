@@ -11,5 +11,5 @@ INPUT_SIZE="$2"
 
 # Execute 30 times
 for i in $(seq 1 30); do
-    mix run "$EXS_FILE" "$INPUT_SIZE" | grep -E '^(Nx|Orchestra)'
+    mix run "$EXS_FILE" "$INPUT_SIZE"
 done
