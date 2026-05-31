@@ -550,8 +550,6 @@ Enum.each(
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
-
-    IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
 )
 
@@ -572,8 +570,6 @@ Enum.each(
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
-
-    IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
 )
 
@@ -594,7 +590,5 @@ Enum.each(
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
     IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
-
-    IO.puts("All nodes visited: #{all_visited == 1}\n")
   end
 )
