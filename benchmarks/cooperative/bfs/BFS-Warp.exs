@@ -566,16 +566,8 @@ frontier_threshold = 0
 run_bfs.(frontier_threshold)
 
 IO.puts("\n--- GPU-CPU Cooperative ---")
-
-# Let's test different thresholds to see the GPU-CPU cooperative behavior
-frontier_thresholds = [128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
-
-Enum.each(
-  frontier_thresholds,
-  fn threshold ->
-    run_bfs.(threshold)
-  end
-)
+frontier_threshold = 1024
+run_bfs.(frontier_threshold)
 
 IO.puts("\n--- CPU-Only ---")
 frontier_threshold = 50_000_000
