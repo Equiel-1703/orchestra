@@ -262,7 +262,9 @@ Orchestra.defmodule BFS do
           total_nodes: total_nodes,
           start_node: start_node,
           nodes: nodes_tensor,
-          edges: edges_tensor
+          edges: edges_tensor,
+          nodes_gnx: nodes_gnx,
+          edges_gnx: edges_gnx
         } = nodes_map,
         cpu_limit,
         max_iterations \\ :infinity
@@ -289,9 +291,7 @@ Orchestra.defmodule BFS do
               Orchestra.get_type(tensor_map.new_frontier)
             ),
           visited_gnx: Orchestra.new_gnx(tensor_map.visited),
-          next_idx_gnx: Orchestra.new_gnx(tensor_map.next_idx),
-          nodes_gnx: Orchestra.new_gnx(nodes_tensor),
-          edges_gnx: Orchestra.new_gnx(edges_tensor)
+          next_idx_gnx: Orchestra.new_gnx(tensor_map.next_idx)
         })
       end
 
@@ -319,9 +319,7 @@ Orchestra.defmodule BFS do
             frontier_gnx: term(),
             new_frontier_gnx: term(),
             visited_gnx: term(),
-            next_idx_gnx: term(),
-            nodes_gnx: term(),
-            edges_gnx: term()
+            next_idx_gnx: term()
           },
           max_iterations :: :infinity | integer(),
           cpu_limit :: integer(),
@@ -364,7 +362,9 @@ Orchestra.defmodule BFS do
          %{
            total_nodes: total_nodes,
            nodes: nodes_tensor,
-           edges: edges_tensor
+           edges: edges_tensor,
+           nodes_gnx: nodes_gnx,
+           edges_gnx: edges_gnx
          } = nodes_map,
          frontier_size,
          tensor_map,
@@ -399,9 +399,9 @@ Orchestra.defmodule BFS do
             {num_blocks},
             {threads_per_block},
             [
-              tensor_map.nodes_gnx,
+              nodes_gnx,
               total_nodes,
-              tensor_map.edges_gnx,
+              edges_gnx,
               tensor_map.frontier_gnx,
               frontier_size,
               tensor_map.new_frontier_gnx,
@@ -525,6 +525,13 @@ IO.puts("--- Processing Input File '#{Path.basename(file)}' ---")
 
 start = System.monotonic_time()
 graph_map = CsrReader.read_and_process_file(file)
+graph_map =
+  Orchestra.with Orchestra.gpu() do
+    Map.merge(graph_map, %{
+      nodes_gnx: Orchestra.new_gnx(graph_map.nodes),
+      edges_gnx: Orchestra.new_gnx(graph_map.edges)
+    })
+  end
 stop = System.monotonic_time()
 
 # IO.inspect(graph_map, label: "Graph Map")
