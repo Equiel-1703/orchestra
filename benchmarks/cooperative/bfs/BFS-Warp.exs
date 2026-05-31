@@ -533,29 +533,9 @@ IO.puts(
   "Time taken to read input file: #{System.convert_time_unit(stop - start, :native, :millisecond)}ms"
 )
 
-IO.puts("\n--- Starting BFS-Warp (GPU-Only) repeats: #{rep} ---")
-
 frontier_threshold = 0
 
-Enum.each(
-  1..rep,
-  fn i ->
-    IO.puts("\n--- Iteration #{i} ---")
-    start = System.monotonic_time()
-    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
-    stop = System.monotonic_time()
-
-    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
-
-    IO.puts("BFS-Warp used GPU: #{used_gpu}")
-    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
-    # IO.inspect(visited_tensor, label: "Visited Tensor")
-  end
-)
-
-IO.puts("\n--- Starting BFS-Warp (GPU-CPU) repeats: #{rep} ---")
-
-frontier_threshold = 2048
+IO.puts("\n--- Starting BFS-Warp (GPU-Only) | frontier_threshold: #{frontier_threshold} | repeats: #{rep} ---")
 
 Enum.each(
   1..rep,
@@ -565,18 +545,40 @@ Enum.each(
     {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
     stop = System.monotonic_time()
 
-    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
+    bfs_time_total = System.convert_time_unit(stop - start, :native, :millisecond)
 
+    IO.puts("BFS-Warp total execution time: #{bfs_time_total}ms")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time_total - tensor_creation_time}ms")
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
-    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
   end
 )
 
-IO.puts("\n--- Starting BFS-Warp (CPU-Only) repeats: #{rep} ---")
+frontier_threshold = 4096
+
+IO.puts("\n--- Starting BFS-Warp (GPU-CPU) | frontier_threshold: #{frontier_threshold} | repeats: #{rep} ---")
+
+Enum.each(
+  1..rep,
+  fn i ->
+    IO.puts("\n--- Iteration #{i} ---")
+    start = System.monotonic_time()
+    {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
+    stop = System.monotonic_time()
+
+    bfs_time_total = System.convert_time_unit(stop - start, :native, :millisecond)
+
+    IO.puts("BFS-Warp total execution time: #{bfs_time_total}ms")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time_total - tensor_creation_time}ms")
+    IO.puts("BFS-Warp used GPU: #{used_gpu}")
+    # IO.inspect(visited_tensor, label: "Visited Tensor")
+  end
+)
 
 frontier_threshold = 50_000_000
 
+IO.puts("\n--- Starting BFS-Warp (CPU-Only) | frontier_threshold: #{frontier_threshold} | repeats: #{rep} ---")
+
 Enum.each(
   1..rep,
   fn i ->
@@ -585,10 +587,11 @@ Enum.each(
     {used_gpu, _visited_tensor, tensor_creation_time} = BFS.bfs(graph_map, frontier_threshold)
     stop = System.monotonic_time()
 
-    bfs_time = System.convert_time_unit(stop - start, :native, :millisecond) - tensor_creation_time
+    bfs_time_total = System.convert_time_unit(stop - start, :native, :millisecond)
 
+    IO.puts("BFS-Warp total execution time: #{bfs_time_total}ms")
+    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time_total - tensor_creation_time}ms")
     IO.puts("BFS-Warp used GPU: #{used_gpu}")
-    IO.puts("BFS-Warp execution time (excluding tensor creation): #{bfs_time}ms")
     # IO.inspect(visited_tensor, label: "Visited Tensor")
   end
 )
