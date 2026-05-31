@@ -90,7 +90,7 @@ mat2 = Orchestra.tensor({size, size}, {:f, 32}, fn _i -> :rand.uniform(100) * 1.
 
 timing_start = System.monotonic_time()
 
-_result = MM.mm(mat1, mat2, size)
+result = MM.mm(mat1, mat2, size)
 
 timing_end = System.monotonic_time()
 
@@ -99,5 +99,5 @@ time = System.convert_time_unit(timing_end - timing_start, :native, :millisecond
 
 IO.puts("Orchestra (CPU)\t#{size}\t#{time}")
 
-# IO.puts("\nChecking results for 5 random positions...\n")
-# CheckMM.check_spots(5, size, mat1, mat2, result)
+IO.puts("\nChecking results for 5 random positions...\n")
+CheckMM.check_spots(5, size, mat1, mat2, result)
