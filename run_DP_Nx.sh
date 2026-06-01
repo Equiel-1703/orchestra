@@ -1,25 +1,25 @@
 #!/bin/bash
 
-EXS_FILE="benchmarks/cpu/mm_elixir.exs"
+EXS_FILE="benchmarks/cpu/dot_product_nx.exs"
 
-# 256 x 256
-INPUT_SIZE=256
-
-# Execute 30 times
-for i in $(seq 1 30); do
-    mix run "$EXS_FILE" "$INPUT_SIZE"
-done
-
-# 512 x 512
-INPUT_SIZE=512
+# 10 million elements
+INPUT_SIZE=10000000
 
 # Execute 30 times
 for i in $(seq 1 30); do
     mix run "$EXS_FILE" "$INPUT_SIZE"
 done
 
-# 1024 x 1024
-INPUT_SIZE=1024
+# 15 million elements
+INPUT_SIZE=15000000
+
+# Execute 30 times
+for i in $(seq 1 30); do
+    mix run "$EXS_FILE" "$INPUT_SIZE"
+done
+
+# 20 million elements
+INPUT_SIZE=200000000
 
 # Execute 30 times
 for i in $(seq 1 30); do
