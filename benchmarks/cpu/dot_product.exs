@@ -16,9 +16,9 @@ Orchestra.defmodule DP do
     tid = get_global_id(0)
     num_cores = get_global_size(0)
 
-    range = (arr_size + num_cores - 1) / num_cores;
-    start = tid * range
-    stop = start + range
+    local_range = (arr_size + num_cores - 1) / num_cores;
+    start = tid * local_range
+    stop = start + local_range
 
     if stop > arr_size do
       stop = arr_size
