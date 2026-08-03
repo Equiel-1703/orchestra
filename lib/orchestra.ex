@@ -164,6 +164,9 @@ defmodule Orchestra do
              [do: process_with_body(do_block, ctx), else: process_with_body(else_block, ctx)]
            ]}
 
+        {:|>, _, [left, right]} ->
+          {:|>, [], [process_with_body(left, ctx), process_with_body(right, ctx)]}
+
         _ ->
           process_with_exp(c, ctx)
       end
