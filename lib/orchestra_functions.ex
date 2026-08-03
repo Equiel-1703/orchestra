@@ -56,15 +56,15 @@ defmodule OrchestraFunctions do
     },
     cas_int: %{
       return_type: :int,
-      arg_types: [:int, :int, :int]
+      arg_types: [:tint, :int, :int]
     },
     cas_float: %{
       return_type: :float,
-      arg_types: [:float, :float, :float]
+      arg_types: [:tfloat, :float, :float]
     },
     cas_double: %{
       return_type: :double,
-      arg_types: [:double, :double, :double]
+      arg_types: [:tdouble, :double, :double]
     },
     sin: %{
       return_type: :float,
