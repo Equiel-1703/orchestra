@@ -1,6 +1,6 @@
 #!/bin/bash
 
-EXS_FILE="benchmarks/cpu/dot_product.exs"
+EXS_FILE="../cpu/dot_product_nx.exs"
 
 # 10 million elements
 INPUT_SIZE=10000000

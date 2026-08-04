@@ -1,6 +1,6 @@
 #!/bin/bash
 
-EXS_FILE="benchmarks/cpu/mm.exs"
+EXS_FILE="../cpu/mm_nx.exs"
 
 # 128 x 128
 INPUT_SIZE=128
