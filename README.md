@@ -34,7 +34,7 @@ To get started with Orchestra, first ensure you have the following prerequisites
   sudo apt install ocl-icd-opencl-dev opencl-c-headers opencl-clhpp-headers
   ```
 
-  **Note on the ICD Loader**: The packages listed above are for general OpenCL development in C/C++. The OpenCL ICD (Installable Client Driver) loader acts as a multiplexer, meaning it allows multiple OpenCL implementations to coexist on the same system (an NVIDIA driver and an AMD driver, for example). You must ensure that you have the correct drivers installed for your specific GPU/CPU so the ICD loader can find and route commands to the appropriate hardware vendor's implementation during runtime.
+  **Note on the ICD Loader**: The packages listed above provide the development headers and the OpenCL Installable Client Driver (ICD) loader. The ICD loader acts as a dispatcher/multiplexer, meaning it does not contain hardware drivers itself, but allows multiple OpenCL implementations (e.g., NVIDIA, AMD, PoCL) to coexist on the same system. Therefore, you must install the correct driver for your CPU and GPU so the ICD loader can discover it at runtime and route the OpenCL API calls to the correct hardware.
 
 ## Hardware-Specific Recommendations
 
