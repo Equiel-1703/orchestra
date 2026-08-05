@@ -104,6 +104,27 @@ Once you have the prerequisites installed, follow these steps to set up and comp
 
     This program uses your GPU to generate a Julia Set fractal at a resolution of 1024x1024 pixels. The resulting image is saved as `julia_set.bmp` in the project root directory.
 
+## Repository Structure
+
+The repository is organized as follows:
+
+- `lib/`: Core Elixir implementation of Orchestra, containing its macros, functions, tensor operations, contexts, etc.
+- `c_src/`: C++/OpenCL NIF runtime source code for CPU and GPU execution.
+- `benchmarks/`: Benchmark implementations evaluated in the paper:
+  - `benchmarks/cpu/`: Linear algebra benchmarks.
+  - `benchmarks/cooperative/bfs`: Breadth-First Search (BFS) graph traversal benchmark and the used datasets. The datasets were obtained from the Stanford Network Analysis Project (SNAP) repository.
+- `LICENSE`: MIT License terms.
+
 ## Licensing
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Publications
+
+Orchestra was presented in the following paper:
+
+> **Orchestra: CPU-GPU Cooperative Programming in Elixir**  
+> Henrique Gabriel Rodrigues, Eduardo Beloni Mailan, Gerson Geraldo H. Cavalheiro, André Rauber Du Bois.  
+> Published in the *30th Brazilian Symposium on Programming Languages (SBLP 2026)*.
+
+- **Paper PDF:** [Download Paper PDF](./paper/Orchestra.pdf)
