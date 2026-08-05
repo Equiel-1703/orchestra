@@ -127,4 +127,4 @@ Orchestra was presented in the following paper:
 > Henrique Gabriel Rodrigues, Eduardo Beloni Mailan, Gerson Geraldo H. Cavalheiro, André Rauber Du Bois.  
 > Published in the *30th Brazilian Symposium on Programming Languages (SBLP 2026)*.
 
-- **Paper PDF:** [Download Paper PDF](./paper/Orchestra.pdf)
+- **Paper PDF:** [Download Paper PDF](./paper/Orchestra%20-%20SBLP%202026.pdf)
