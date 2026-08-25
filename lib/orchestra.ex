@@ -6,20 +6,28 @@ defmodule Orchestra do
   # It prints a success message if the library is loaded successfully, and an error otherwise.
   # The BEAM VM is shut down if the NIF fails to load.
   def load_nifs() do
-    ret = :erlang.load_nif(to_charlist("./priv/gpu_nifs"), 0)
+    nif_path = Application.app_dir(:orchestra, "priv/gpu_nifs") |> to_charlist()
+    ret = :erlang.load_nif(nif_path, 0)
 
     case ret do
       :ok ->
-        # The Erlang VM sets the SIGCHLD signal to be ignored by default to avoid zombies, but some OpenCL implementations
-        # (like PoCL) require it to be set to the default handler to work properly. So I've set it to the default handler
-        # when the NIF library is loaded. As far as I understand, this should not cause any issues in the BEAM VM, in fact,
-        # even José Valim had a similar issue working in TensorFlow:
-        # + SOURCE: https://erlang.org/pipermail/erlang-questions/2020-November/100109.html
-        # An Erlang developer said that the VM doesn't really care about this signal - it just ignores it. The problem
-        # is more about zombie processes that may be created by other stuff running in the same process, a.k.a BEAM, like
-        # other NIFs or Erlang Ports. Therefore, we need to be careful.
-        # - Henrique
-        :os.set_signal(:sigchld, :default)
+        case :os.type() do
+          {:unix, _} ->
+            # The Erlang VM sets the SIGCHLD signal to be ignored by default to avoid zombies, but some OpenCL implementations
+            # (like PoCL) require it to be set to the default handler to work properly. So I've set it to the default handler
+            # when the NIF library is loaded. As far as I understand, this should not cause any issues in the BEAM VM, in fact,
+            # even José Valim had a similar issue working in TensorFlow:
+            # + SOURCE: https://erlang.org/pipermail/erlang-questions/2020-November/100109.html
+            # An Erlang developer said that the VM doesn't really care about this signal - it just ignores it. The problem
+            # is more about zombie processes that may be created by other stuff running in the same process, a.k.a BEAM, like
+            # other NIFs or Erlang Ports. Therefore, we need to be careful.
+            # - Henrique
+            :os.set_signal(:sigchld, :default)
+
+          _ ->
+            # On Windows this signal does not exist, so we don't have to worry.
+            :ok
+        end
 
         :ok
 
