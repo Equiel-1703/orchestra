@@ -891,7 +891,7 @@ static ERL_NIF_TERM get_device_array_nif(ErlNifEnv *env, int argc, const ERL_NIF
 
   if (!enif_is_identical(e_elements_to_copy, enif_make_atom(env, "nil")))
   {
-    if (!enif_get_ulong(env, e_elements_to_copy, &elements_to_copy_bytes))
+    if (!enif_get_ulong(env, e_elements_to_copy, (unsigned long *)&elements_to_copy_bytes))
     {
       return enif_make_badarg(env);
     }
@@ -1705,7 +1705,7 @@ static ERL_NIF_TERM write_tensor_to_gnx_nif(ErlNifEnv *env, int argc, const ERL_
   else if (enif_is_number(env, e_elements_to_copy))
   {
     // Save number of elements to copy in size_to_copy_bytes
-    if (!enif_get_ulong(env, e_elements_to_copy, &size_to_copy_bytes))
+    if (!enif_get_ulong(env, e_elements_to_copy, (unsigned long *)&size_to_copy_bytes))
     {
       return enif_make_badarg(env);
     }
