@@ -447,6 +447,20 @@ defmodule Orchestra do
     end
   end
 
+  def tensor(%Orchestra.Context{} = ctx, shape, type) when is_tuple(shape) do
+    cond do
+      ctx.device == :cpu ->
+        tensor(shape, type)
+
+      true ->
+        raise "Creating Nx tensors is only allowed in CPU contexts, but the current context is from device '#{ctx.device}'"
+    end
+  end
+
+  def tensor(%Orchestra.Context{} = ctx, shape, type: t) when is_tuple(shape) do
+    tensor(ctx, shape, t)
+  end
+
   # Tensor from Elixir function
   def tensor(shape, type, fun) when is_tuple(shape) and is_function(fun) do
     t_charlist = get_type_charlist(type)
