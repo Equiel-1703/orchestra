@@ -34,13 +34,13 @@ BMP::BMP(const char *filename, int width, int height, int bitsPerPixel)
     this->infoHeader.biWidth = width;
     this->infoHeader.biHeight = height;
     this->infoHeader.biPlanes = 1;
-    this->infoHeader.biBitCount = this->BITS_PER_PIXEL; // Bits per pixel
-    this->infoHeader.biCompression = 0;                 // No compression
-    this->infoHeader.biSizeImage = 0;                   // Can be zero for uncompressed images
-    this->infoHeader.biXPelsPerMeter = 2835;            // 72 DPI in PPM
-    this->infoHeader.biYPelsPerMeter = 2835;            // 72 DPI in PPM
-    this->infoHeader.biClrUsed = 0;                     // All colors are important
-    this->infoHeader.biClrImportant = 0;                // All colors are important
+    this->infoHeader.biBitCount = static_cast<uint16_t>(this->BITS_PER_PIXEL);  // Bits per pixel
+    this->infoHeader.biCompression = 0;                                         // No compression
+    this->infoHeader.biSizeImage = 0;                                           // Can be zero for uncompressed images
+    this->infoHeader.biXPelsPerMeter = 2835;                                    // 72 DPI in PPM
+    this->infoHeader.biYPelsPerMeter = 2835;                                    // 72 DPI in PPM
+    this->infoHeader.biClrUsed = 0;                                             // All colors are important
+    this->infoHeader.biClrImportant = 0;                                        // All colors are important
 }
 
 BMP::~BMP()
